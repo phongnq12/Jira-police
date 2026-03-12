@@ -137,9 +137,17 @@ async function runDailyReport() {
  * Khởi tạo bộ đếm thời gian
  */
 function initCronJobs() {
-    console.log('⏳ Đang khởi tạo các luồng Cronjob (Thư viện Cron xịn)...');
+    console.log('⏳ Đang khởi tạo các luồng Cronjob...');
 
-    const schedule = env.CRON_SCHEDULE || '0 * * * *';
+    let schedule = env.CRON_SCHEDULE || '0 * * * *';
+    
+    // Thư viện 'cron' dùng 6 trường (giây phút giờ ngày tháng thứ)
+    // Nếu user đang dùng 5 trường (node-cron style), tự động thêm '0' (giây) ở đầu
+    const fields = schedule.trim().split(/\s+/);
+    if (fields.length === 5) {
+        schedule = `0 ${schedule}`;
+        console.log(`🔄 Tự động chuyển đổi sang 6 trường: ${schedule}`);
+    }
     
     try {
         const job = new CronJob(
@@ -152,9 +160,9 @@ function initCronJobs() {
             true, // start
             'Asia/Ho_Chi_Minh' // timezone
         );
-        console.log(`✅ Đã đặt lịch quét tại: ${schedule} (Timezone: Asia/Ho_Chi_Minh)`);
+        console.log(`✅ Đã đặt lịch quét thành công! Lịch: ${schedule} (Timezone: Asia/Ho_Chi_Minh)`);
     } catch (err) {
-        console.error('❌ Vẫn lỗi định dạng anh ơi, kiểm tra lại biến môi trường nhé:', err.message);
+        console.error('❌ Lỗi khởi tạo Cron:', err.message);
     }
 }
 
