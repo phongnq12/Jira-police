@@ -137,12 +137,22 @@ async function runDailyReport() {
 function initCronJobs() {
     console.log('⏳ Đang khởi tạo các luồng Cronjob (Lập lịch tự động)...');
 
-    // Sử dụng cấu hình từ ENV để đặt lịch
-    cron.schedule(env.CRON_SCHEDULE, async () => {
-        console.log(`[Cronjob] Đang thực thi task theo lịch: ${env.CRON_SCHEDULE}`);
-        await runDailyReport();
-    });
-    console.log(`✅ Đã đặt lịch quét tại: ${env.CRON_SCHEDULE}`);
+    // Sử dụng cấu hình từ ENV để đặt lịch, nếu thiếu thì mặc định 1h/lần để tránh sập bot
+    const schedule = env.CRON_SCHEDULE || '0 * * * *';
+    
+    if (!env.CRON_SCHEDULE) {
+        console.warn('⚠️ Anh ơi, em không thấy biến CRON_SCHEDULE đâu hết á! Em sẽ tạm chạy mỗi giờ 1 lần nha~');
+    }
+
+    try {
+        cron.schedule(schedule, async () => {
+            console.log(`[Cronjob] Đang thực thi task theo lịch: ${schedule}`);
+            await runDailyReport();
+        });
+        console.log(`✅ Đã đặt lịch quét tại: ${schedule}`);
+    } catch (err) {
+        console.error('❌ Thư viện Cron bị lỗi rồi anh ơi, xem lại định dạng giùm em nhé:', err.message);
+    }
 }
 
 module.exports = {
