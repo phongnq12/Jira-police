@@ -3,24 +3,21 @@ const config = require('../config/env');
 
 /**
  * Service giao tiếp với Hệ thống nội bộ Jira (REST API)
- * Dùng cho Phase 4: Quét Cronjob để xuất báo cáo
  */
 class JiraService {
     constructor() {
-        // Xử lý thông minh: Thêm https:// tự động nếu bạn vô tình chỉ gõ mỗi tên miền
         let baseUrl = config.JIRA.BASE_URL || '';
         if (baseUrl && !baseUrl.startsWith('http')) {
             baseUrl = `https://${baseUrl}`;
         }
 
         this.baseUrl = baseUrl;
-        this.username = config.JIRA.USERNAME; // Dành cho Jira Cloud hoặc Basic Auth cũ
-        this.apiToken = config.JIRA.API_TOKEN; // PAT (Data Center) hoặc API Token (Cloud)
+        this.username = config.JIRA.USERNAME;
+        this.apiToken = config.JIRA.API_TOKEN;
+        this.maxRetries = 3;
+        this.retryDelay = 2000; // 2 giây giữa các lần thử
     }
 
-    /**
-     * Tự động sinh Header Auth dựa vào việc bạn config PAT hay Mật khẩu
-     */
     get axiosInstance() {
         const headers = {
             'Accept': 'application/json',
@@ -28,13 +25,9 @@ class JiraService {
         };
 
         if (this.username && this.apiToken) {
-            // Logic xác thực cho Jira Cloud / Jira Server Basic Auth 
-            // Khi khai báo đủ [Username + Token] -> Dùng Basic Auth 
             const authtoken = Buffer.from(`${this.username}:${this.apiToken}`).toString('base64');
             headers['Authorization'] = `Basic ${authtoken}`;
         } else if (this.apiToken) {
-            // Logic xác thực cho Jira Server Data Center PAT
-            // Khi KHÔNG có Username, chỉ có Token -> Dùng chuẩn Bearer Token
             headers['Authorization'] = `Bearer ${this.apiToken}`;
         }
 
@@ -44,34 +37,50 @@ class JiraService {
                 ...headers,
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
             },
-            timeout: 10000 // Timeout 10s tránh treo app khi Jira sập
+            timeout: 15000 // 15s cho môi trường cloud (cold start)
         });
     }
 
     /**
-     * Quét Issues theo chuỗi JQL tuỳ ý
-     * @param {string} jql 
-     * @param {Array<string>} fields Liệt kê các field cần lấy để nhẹ payload
+     * Hàm sleep để chờ giữa các lần retry
+     */
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Quét Issues theo chuỗi JQL tuỳ ý (Có cơ chế tự động Retry)
      */
     async searchIssues(jql, fields = ['summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent']) {
-        try {
-            console.log(`[JiraService] Đang cào dữ liệu từ API Jira: JQL = "${jql}"...`);
-            const response = await this.axiosInstance.get('/search', {
-                params: {
-                    jql: jql,
-                    maxResults: 50,
-                    fields: fields.join(',')
+        let lastError;
+
+        for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+            try {
+                console.log(`[JiraService] Lần thử ${attempt}/${this.maxRetries} - JQL = "${jql}"...`);
+                const response = await this.axiosInstance.get('/search', {
+                    params: {
+                        jql: jql,
+                        maxResults: 50,
+                        fields: fields.join(',')
+                    }
+                });
+                return response.data;
+            } catch (error) {
+                lastError = error;
+                console.error(`❌ Lần thử ${attempt}/${this.maxRetries} thất bại:`, error.message);
+
+                if (attempt < this.maxRetries) {
+                    console.log(`⏳ Đợi ${this.retryDelay / 1000}s rồi thử lại...`);
+                    await this.sleep(this.retryDelay);
                 }
-            });
-            return response.data;
-        } catch (error) {
-            console.error('❌ Lỗi khi gọi API Search JQL (Jira):', error.message);
-            if (error.response) {
-                console.error('Chi tiết Data lỗi từ Jira:', error.response.status, error.response.data);
-                console.error('Headers phản hồi:', error.response.headers);
             }
-            throw error;
         }
+
+        console.error('❌ Đã thử hết số lần retry mà vẫn lỗi!');
+        if (lastError.response) {
+            console.error('Chi tiết:', lastError.response.status, lastError.response.data);
+        }
+        throw lastError;
     }
 }
 
