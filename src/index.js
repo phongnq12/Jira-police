@@ -29,16 +29,39 @@ const TelegramBot = require('node-telegram-bot-api');
 const { initCommands } = require('./controllers/command.controller');
 if (config.ACTIVE_NOTIFICATION_PLATFORM === 'telegram' || config.ACTIVE_NOTIFICATION_PLATFORM === 'both') {
     if (config.TELEGRAM.BOT_TOKEN) {
-        // Khởi tạo Polling mode để nằm nghe tin nhắn từ Group Telegram
-        const bot = new TelegramBot(config.TELEGRAM.BOT_TOKEN, { polling: true });
+        const bot = new TelegramBot(config.TELEGRAM.BOT_TOKEN, {
+            polling: {
+                autoStart: true,
+                interval: 3000,  // 3 giây/lần thay vì mặc định (giảm tải mạng)
+                params: { timeout: 10 }
+            }
+        });
+
+        // Bắt lỗi polling để bot KHÔNG BAO GIỜ crash vì lỗi mạng
+        bot.on('polling_error', (error) => {
+            console.error(`⚠️ [Telegram Polling] Lỗi mạng (em tự thử lại): ${error.code || error.message}`);
+        });
+
+        bot.on('error', (error) => {
+            console.error(`⚠️ [Telegram Bot] Lỗi chung: ${error.message}`);
+        });
+
         initCommands(bot);
-        console.log('🤖 Đã khởi động bộ Lắng nghe lệnh Bot Telegram (Polling).');
+        console.log('🤖 Đã khởi động bộ Lắng nghe lệnh Bot Telegram (Polling - có bảo vệ lỗi mạng).');
     }
 }
+
+// Bảo vệ process-level: Không cho app crash vì lỗi không bắt được
+process.on('unhandledRejection', (reason) => {
+    console.error('⚠️ [Process] Unhandled Rejection:', reason?.message || reason);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('⚠️ [Process] Uncaught Exception:', error.message);
+});
 
 // Start Server
 app.listen(config.PORT, () => {
     console.log(`🚀 Jira Master Bot started on port ${config.PORT}`);
-    console.log('--- Sandbox / Môi trường Test ---');
     console.log('Chờ đón Jira Webhook bắn tới...');
 });
