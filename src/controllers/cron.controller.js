@@ -1,4 +1,4 @@
-const cron = require('node-cron');
+const { CronJob } = require('cron');
 const jiraService = require('../services/jira.service');
 const messageService = require('../services/message.service');
 const notificationService = require('../services/notification.service');
@@ -131,7 +131,7 @@ async function runDailyReport() {
     }
 }
 
-const { CronJob } = require('cron');
+
 
 /**
  * Khởi tạo bộ đếm thời gian
