@@ -6,9 +6,14 @@ const app = express();
 // Middleware to parse incoming JSON bodies (essential for Webhooks)
 app.use(express.json());
 
-// Health check endpoint
+// Health check endpoint (chi tiết)
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', message: 'Jira Master Bot is running' });
+});
+
+// Ping endpoint (siêu nhẹ - dùng cho cron-job.org giữ ấm Render)
+app.get('/ping', (req, res) => {
+    res.status(200).send('OK');
 });
 
 // Jira Webhook Endpoint
