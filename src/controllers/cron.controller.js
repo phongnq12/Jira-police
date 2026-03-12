@@ -138,21 +138,11 @@ function initCronJobs() {
     console.log('⏳ Đang khởi tạo các luồng Cronjob (Lập lịch tự động)...');
 
     // Sử dụng cấu hình từ ENV để đặt lịch
-    try {
-        cron.schedule(env.CRON_SCHEDULE, async () => {
-            console.log(`[Cronjob] Đang thực thi task theo lịch: ${env.CRON_SCHEDULE}`);
-            await runDailyReport();
-        }, {
-            timezone: "Asia/Ho_Chi_Minh"
-        });
-        console.log(`✅ Đã đặt lịch quét tại: ${env.CRON_SCHEDULE} (Timezone: Asia/Ho_Chi_Minh)`);
-    } catch (err) {
-        console.error('⚠️ Không thể khởi tạo Cron với Timezone Việt Nam, thử lại với giờ mặc định...');
-        cron.schedule(env.CRON_SCHEDULE, async () => {
-            await runDailyReport();
-        });
-        console.log(`✅ Đã đặt lịch quét tại: ${env.CRON_SCHEDULE} (Giờ mặc định hệ thống)`);
-    }
+    cron.schedule(env.CRON_SCHEDULE, async () => {
+        console.log(`[Cronjob] Đang thực thi task theo lịch: ${env.CRON_SCHEDULE}`);
+        await runDailyReport();
+    });
+    console.log(`✅ Đã đặt lịch quét tại: ${env.CRON_SCHEDULE}`);
 }
 
 module.exports = {
