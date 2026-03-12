@@ -1,0 +1,35 @@
+{
+  "summary": "[Hotfix][CMS] Sửa lại nội dung giải ngân trong chi tiết lịch sử giao dịch",
+  "duedate": null,
+  "timespent": null,
+  "timeoriginalestimate": null,
+  "assignee": {
+    "self": "https://jira.aequitas.vn/rest/api/2/user?username=anhdq",
+    "name": "anhdq",
+    "key": "JIRAUSER18033",
+    "emailAddress": "anhdq@synodus.com",
+    "avatarUrls": {
+      "48x48": "https://jira.aequitas.vn/secure/useravatar?avatarId=10336",
+      "24x24": "https://jira.aequitas.vn/secure/useravatar?size=small&avatarId=10336",
+      "16x16": "https://jira.aequitas.vn/secure/useravatar?size=xsmall&avatarId=10336",
+      "32x32": "https://jira.aequitas.vn/secure/useravatar?size=medium&avatarId=10336"
+    },
+    "displayName": "Đặng Quang Anh",
+    "active": true,
+    "timeZone": "Asia/Ho_Chi_Minh"
+  },
+  "status": {
+    "self": "https://jira.aequitas.vn/rest/api/2/status/10002",
+    "description": "",
+    "iconUrl": "https://jira.aequitas.vn/",
+    "name": "Done",
+    "id": "10002",
+    "statusCategory": {
+      "self": "https://jira.aequitas.vn/rest/api/2/statuscategory/3",
+      "id": 3,
+      "key": "done",
+      "colorName": "green",
+      "name": "Done"
+    }
+  }
+}
