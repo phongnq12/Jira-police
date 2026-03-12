@@ -36,19 +36,4 @@ app.listen(config.PORT, () => {
     console.log(`🚀 Jira Master Bot started on port ${config.PORT}`);
     console.log('--- Sandbox / Môi trường Test ---');
     console.log('Chờ đón Jira Webhook bắn tới...');
-
-    // Logic Self-ping để giữ ấm trên Render Free
-    const axios = require('axios');
-    const RENDER_URL = process.env.RENDER_EXTERNAL_URL; // Sẽ cấu hình trên Render dashboard
-    if (RENDER_URL) {
-        console.log(`💓 Đã kích hoạt chế độ Giữ Ấm tại: ${RENDER_URL}`);
-        setInterval(async () => {
-            try {
-                await axios.get(`${RENDER_URL}/health`);
-                console.log('💓 Em vừa tự làm mới mình để không bị ngủ gật đó~');
-            } catch (err) {
-                console.error('❌ Lỗi tự báo thức:', err.message);
-            }
-        }, 14 * 60 * 1000); // 14 phút một lần
-    }
 });
