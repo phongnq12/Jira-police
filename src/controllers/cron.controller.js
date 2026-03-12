@@ -141,13 +141,16 @@ function initCronJobs() {
 
     let schedule = env.CRON_SCHEDULE || '0 * * * *';
     
+    // Loại bỏ dấu ngoặc kép/đơn thừa (lỗi phổ biến khi nhập ENV trên hosting dashboard)
+    schedule = schedule.replace(/['"]/g, '').trim();
+    
     // Thư viện 'cron' dùng 6 trường (giây phút giờ ngày tháng thứ)
     // Nếu user đang dùng 5 trường (node-cron style), tự động thêm '0' (giây) ở đầu
-    const fields = schedule.trim().split(/\s+/);
+    const fields = schedule.split(/\s+/);
     if (fields.length === 5) {
         schedule = `0 ${schedule}`;
-        console.log(`🔄 Tự động chuyển đổi sang 6 trường: ${schedule}`);
     }
+    console.log(`📅 Lịch Cron sẽ chạy: ${schedule}`);
     
     try {
         const job = new CronJob(
