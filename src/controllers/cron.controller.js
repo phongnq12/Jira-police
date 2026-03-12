@@ -138,8 +138,10 @@ function initCronJobs() {
     console.log('⏳ Đang khởi tạo các luồng Cronjob (Lập lịch tự động)...');
 
     // Sử dụng cấu hình từ ENV để đặt lịch
-    cron.schedule(env.CRON_SCHEDULE, () => {
-        runDailyReport();
+    cron.schedule(env.CRON_SCHEDULE, async () => {
+        await runDailyReport();
+    }, {
+        timezone: "Asia/Ho_Chi_Minh"
     });
 }
 
