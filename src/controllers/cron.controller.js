@@ -58,7 +58,9 @@ async function runDailyReport(isScanAll = false) {
             if (!fields.timeoriginalestimate && fields.timeoriginalestimate !== 0) missingFields.push('Original Estimate');
 
             // [Kịch bản 1]: Báo động nếu task vứt trống thông tin Planning
-            if (missingFields.length > 0) {
+            // Bỏ qua các task đang ở trạng thái khởi tạo (To do, Open) hoặc đã đóng/hủy (Cancelled, vv.)
+            const ignoreForMissingInfo = ['to do', 'open', 'cancelled', 'done', 'resolved', 'closed'];
+            if (missingFields.length > 0 && !ignoreForMissingInfo.includes(status.toLowerCase())) {
                 missingInfoCount++;
                 console.log(`[Cronjob] Task ${key} thiếu thông tin: ${missingFields.join(', ')}. Tiến hành cảnh báo...`);
                 const missingMsg = messageService.missingInformationAlert(key, summary, assigneeName, missingFields);
