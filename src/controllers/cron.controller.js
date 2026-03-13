@@ -25,7 +25,7 @@ async function runDailyReport(isScanAll = false) {
 
         // Yêu cầu Jira API trả về các trường cần thiết để phân tích
         const data = await jiraService.searchIssues(jql, [
-            'summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent'
+            'summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent', 'issuetype'
         ]);
 
         if (!data.issues || data.issues.length === 0) {
@@ -51,6 +51,7 @@ async function runDailyReport(isScanAll = false) {
             const summary = fields.summary;
             const status = fields.status ? fields.status.name : 'Unknown';
             const assigneeName = fields.assignee ? fields.assignee.displayName : null;
+            const issueTypeName = fields.issuetype ? fields.issuetype.name : 'Unknown';
 
             // --- KIỂM TRA MỤC 1 & 2 & 7: THIẾU THÔNG TIN & TRÀN ESTIMATE & THIẾU LOG WORK --- //
             const missingFields = [];
@@ -58,9 +59,17 @@ async function runDailyReport(isScanAll = false) {
             if (!fields.timeoriginalestimate && fields.timeoriginalestimate !== 0) missingFields.push('Original Estimate');
 
             // [Kịch bản 1]: Báo động nếu task vứt trống thông tin Planning
-            // Bỏ qua các task đang ở trạng thái khởi tạo (To do, Open) hoặc đã đóng/hủy (Cancelled, vv.)
-            const ignoreForMissingInfo = ['to do', 'open', 'cancelled', 'done', 'resolved', 'closed'];
-            if (missingFields.length > 0 && !ignoreForMissingInfo.includes(status.toLowerCase())) {
+            // Mặc định luôn bỏ qua các task đã đóng/hủy (Cancelled, Done, Resolved, Closed)
+            const deadStatuses = ['cancelled', 'done', 'resolved', 'closed'];
+            
+            // Với trạng thái khởi tạo (To do, Open), CHỈ bỏ qua nếu là vé Bug hoặc Sub-bug
+            const initStatuses = ['to do', 'open'];
+            const isBugLike = issueTypeName.toLowerCase().includes('bug');
+            
+            const isIgnored = deadStatuses.includes(status.toLowerCase()) || 
+                              (initStatuses.includes(status.toLowerCase()) && isBugLike);
+
+            if (missingFields.length > 0 && !isIgnored) {
                 missingInfoCount++;
                 console.log(`[Cronjob] Task ${key} thiếu thông tin: ${missingFields.join(', ')}. Tiến hành cảnh báo...`);
                 const missingMsg = messageService.missingInformationAlert(key, summary, assigneeName, missingFields);
