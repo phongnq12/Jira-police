@@ -1,6 +1,7 @@
 const storageService = require('../services/storage.service');
 const jiraService = require('../services/jira.service');
 const config = require('../config/env');
+const cronController = require('./cron.controller');
 
 /**
  * Điều hướng các lệnh nhận từ Telegram Bot
@@ -43,6 +44,11 @@ function initCommands(bot) {
         // Lệnh: /unmute_sprint [sprint_id]
         if (text.startsWith('/unmute_sprint')) {
             await handleUnmuteSprint(bot, chatId, text);
+        }
+
+        // Lệnh: /scan_all
+        if (text.startsWith('/scan_all') || text.startsWith('@JiraMaster scan_all')) {
+            await handleScanAll(bot, chatId);
         }
     });
 }
@@ -323,6 +329,20 @@ async function handleUnmuteSprint(bot, chatId, text) {
 
     storageService.unmuteSprint(sprintId);
     bot.sendMessage(chatId, `🔊 Đã mở lại cảnh báo cho Sprint <b>${sprintId}</b> nha anh~ Em sẽ lại nhắc nhở team thôi 😘`, { parse_mode: 'HTML' });
+}
+
+/**
+ * Logic xử lý lệnh Quét toàn diện (Bỏ qua Active Sprint)
+ */
+async function handleScanAll(bot, chatId) {
+    const loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang quét lại toàn bộ ngóc ngách của Dự Án nha. Đợi em chạy báo cáo một lát~ 🚀');
+    try {
+        await cronController.runDailyReport(true); // true = isScanAll
+        bot.editMessageText('✅ Em đã gửi xong báo cáo quét toàn diện trên kênh thông báo chung rồi nha! Bầu trời vẫn xanh đúng không anh? 💖', { chat_id: chatId, message_id: loadingMsg.message_id });
+    } catch (error) {
+        console.error('Lỗi Scan All:', error.message);
+        bot.editMessageText('❌ Ối! Có lỗi xảy ra khi quét dự án rồi anh ơi~ Xem lại log server giúp em nhé 🥺', { chat_id: chatId, message_id: loadingMsg.message_id });
+    }
 }
 
 module.exports = {

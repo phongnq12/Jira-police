@@ -14,11 +14,14 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 /**
  * Quét toàn bộ các task đang mở và kiểm tra các điều kiện cảnh báo.
  */
-async function runDailyReport() {
-    console.log('[Cronjob] Bắt đầu chạy luồng quét Scheduled Report...');
+async function runDailyReport(isScanAll = false) {
+    console.log(`[Cronjob] Bắt đầu chạy luồng quét Scheduled Report... (Scan All: ${isScanAll})`);
     try {
         // Tìm tất cả các task chưa hoàn thành (Unresolved) trong dự án
-        const jql = `project = "${PROJECT_KEY}" AND resolution = Unresolved`;
+        let jql = `project = "${PROJECT_KEY}" AND resolution = Unresolved`;
+        if (!isScanAll) {
+            jql += ` AND sprint IN openSprints()`;
+        }
 
         // Yêu cầu Jira API trả về các trường cần thiết để phân tích
         const data = await jiraService.searchIssues(jql, [
