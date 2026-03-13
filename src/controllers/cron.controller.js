@@ -54,20 +54,28 @@ async function runDailyReport(isScanAll = false) {
             const issueTypeName = fields.issuetype ? fields.issuetype.name : 'Unknown';
 
             // --- KIỂM TRA MỤC 1 & 2 & 7: THIẾU THÔNG TIN & TRÀN ESTIMATE & THIẾU LOG WORK --- //
+            const initStatuses = ['to do', 'open'];
+            const isInitStatus = initStatuses.includes(status.toLowerCase());
+            const isBugLike = issueTypeName.toLowerCase().includes('bug');
+
             const missingFields = [];
-            if (!fields.duedate) missingFields.push('Due Date');
-            if (!fields.timeoriginalestimate && fields.timeoriginalestimate !== 0) missingFields.push('Original Estimate');
+            
+            // Due date: Bỏ qua kiểm tra nếu đang ở trạng thái To do/Open (áp dụng MỌI LOẠI ticket)
+            if (!fields.duedate && !isInitStatus) {
+                missingFields.push('Due Date');
+            }
+
+            // Estimate: Bỏ qua kiểm tra nếu đang ở To do/Open NHƯNG CHỈ áp dụng cho vé Bug/Sub-bug
+            if (!fields.timeoriginalestimate && fields.timeoriginalestimate !== 0) {
+                if (!(isInitStatus && isBugLike)) {
+                    missingFields.push('Original Estimate');
+                }
+            }
 
             // [Kịch bản 1]: Báo động nếu task vứt trống thông tin Planning
             // Mặc định luôn bỏ qua các task đã đóng/hủy (Cancelled, Done, Resolved, Closed)
             const deadStatuses = ['cancelled', 'done', 'resolved', 'closed'];
-            
-            // Với trạng thái khởi tạo (To do, Open), CHỈ bỏ qua nếu là vé Bug hoặc Sub-bug
-            const initStatuses = ['to do', 'open'];
-            const isBugLike = issueTypeName.toLowerCase().includes('bug');
-            
-            const isIgnored = deadStatuses.includes(status.toLowerCase()) || 
-                              (initStatuses.includes(status.toLowerCase()) && isBugLike);
+            const isIgnored = deadStatuses.includes(status.toLowerCase());
 
             if (missingFields.length > 0 && !isIgnored) {
                 missingInfoCount++;
