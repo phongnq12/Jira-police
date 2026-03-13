@@ -121,7 +121,10 @@ async function runDailyReport() {
         console.log(`  - ⏳ Kịch bản Tàng Hình Log Work: ${trackingWorklogCount}`);
 
         if ((overEstimateCount + deadlineTodayCount + overdueCount + missingInfoCount + trackingWorklogCount) === 0) {
-            console.log(`  => ✅ KHÔNG CÓ CẢNH BÁO NÀO TỪ MỤC CHÍNH. Mọi thứ đang ổn, Bot giữ Im Lặng.\n`);
+            console.log(`  => ✅ KHÔNG CÓ CẢNH BÁO NÀO TỪ MỤC CHÍNH. Gửi thông báo khích lệ (All Clear).\n`);
+            
+            const allClearMsg = messageService.allClearAlert();
+            await notificationService.dispatchAlert(`[Jira Master] 🌟 BẦU TRỜI TRONG XANH`, allClearMsg, 'info');
         } else {
             console.log(`  => 📡 Đã phát lệnh nã Notification.\n`);
         }

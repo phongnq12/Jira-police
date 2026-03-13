@@ -129,6 +129,33 @@ Anh ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> đang "<b>$
 Anh làm nhiều vậy sao không ghi lại? Em muốn biết anh đã cống hiến bao nhiêu mà~ ⏰💕
     `.trim();
     }
+
+    /**
+     * [Kịch bản 8] Bầu Trời Trong Xanh (Khích lệ tinh thần)
+     */
+    allClearAlert() {
+        const messages = [
+            "Hôm nay team ngoan quá, xứng đáng 10 điểm không có nhưng! 🚀",
+            "Không một tiếng còi báo động nào, Em xin phép đi ngủ giữ sắc đẹp! 💅",
+            "Cả làng bình yên, các dev nhà mình nỗ lực tuyệt vời quá, mlem mlem! 🍗",
+            "Quét mỏi cả mắt mà chẳng thấy ai vi phạm, chán ghê! Giỡn thôi, anh em làm tốt lắm 💕",
+            "Bầu trời trong xanh, Jira sạch sẽ. Hôm nay mọi người xuất sắc quá đi~ ✨",
+            "Lịch trình sạch bong kin kít! Ai cũng ngoan thế này thì làm em thất nghiệp mất thôi 🥺",
+            "Một ngày không có cảnh báo! Các anh hùng Agile của em nay chăm chỉ quá chừng 🎊"
+        ];
+
+        // Lấy ngẫu nhiên (random) một câu khen
+        const randomIndex = Math.floor(Math.random() * messages.length);
+        const randomMsg = messages[randomIndex];
+
+        return `
+🌟 <b>BẦU TRỜI TRONG XANH - ALL CLEAR</b> 🌟
+
+${randomMsg}
+
+Tiếp tục phát huy nhé cả nhà! Yêu thương~ 💖
+    `.trim();
+    }
 }
 
 module.exports = new MessageService();
