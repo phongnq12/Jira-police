@@ -9,10 +9,10 @@ const projectRoutingMap = {
     // Để giữ nguyên tính chất đang chạy ổn định: 
     // Chúng ta lấy ID Group hiện tại (-5185115610) trỏ vào Project Key Cũ (X25RDDIGILEND)
     "-5185115610": {
-        jiraProjectKey: "X25RDDIGILEND", 
-        projectName: "Dự án hiện tại"
+        jiraProjectKey: "V.25.G.RD.C12.43.S",
+        projectName: "Từ điển dữ liệu"
     },
-    
+
     // Khi anh có dự án 2, anh chỉ cần lấy ID Group 2 dán vào đây, rồi điền Jira Key D.A 2
     // Ví dụ mẫu:
     // "-10022334455": {
@@ -25,7 +25,7 @@ const projectRoutingMap = {
 // Đảm bảo không làm vỡ các setup cũ trên hosting
 if (env.TELEGRAM.TEST_GROUP_ID && env.JIRA.PROJECT_KEY) {
     const defaultChatId = String(env.TELEGRAM.TEST_GROUP_ID);
-    
+
     // Chỉ thêm vào nếu mảng config tĩnh (ở trên) chưa khai báo ID group này
     if (!projectRoutingMap[defaultChatId]) {
         projectRoutingMap[defaultChatId] = {
