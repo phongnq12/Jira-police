@@ -70,7 +70,13 @@ async function handleJiraWebhook(req, res) {
                     const doneStatuses = ['done', 'resolved', 'closed'];
                     if (doneStatuses.includes(toString.toLowerCase())) {
                         const timeSpent = issue.fields.timespent || 0;
-                        if (timeSpent === 0) {
+                        
+                        // Danh sách vé cha được miễn trừ bắt buộc Log Work khi kéo Done
+                        const issueTypeName = issue.fields.issuetype ? issue.fields.issuetype.name.toLowerCase() : '';
+                        const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
+                        const isExempt = exemptParentTypes.includes(issueTypeName);
+
+                        if (timeSpent === 0 && !isExempt) {
                             const alertMsg = messageService.missingWorkLogAlert(issueKey, issueSummary, assigneeName, toString);
                             await notificationService.dispatchAlert(`[Jira Master] ⏳ QUÊN LOG WORK`, alertMsg, 'warning', targetChatId);
                         }
