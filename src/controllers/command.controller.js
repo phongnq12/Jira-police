@@ -72,8 +72,8 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
     try {
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
-        // JQL tìm kiếm các task thuộc Sprint Active hoặc Sprint ID cụ thể
-        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, "User Story", Task)`;
+        // JQL lấy task. (Không cho "User Story" vào JQL vì nếu Jira project đó không dùng loại thẻ này thì JQL sẽ lỗi 400 Bad Request)
+        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task)`;
         if (sprintId && !isNaN(sprintId)) {
             jql += ` AND sprint = ${sprintId}`;
         } else {
@@ -97,8 +97,17 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
         // === THUẬT TOÁN GOM NHÓM (GROUP BY) MẢNG THEO GIỜ LÀM ===
         const effortMap = {};
         let totalSprintSeconds = 0;
+        let totalFilteredTaskCount = 0;
+
+        // Danh sách miễn trừ lọc thêm bằng JS (Phòng hờ User Story lọt qua JQL)
+        const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
 
         for (const issue of data.issues) {
+            const issueTypeName = issue.fields.issuetype ? issue.fields.issuetype.name.toLowerCase() : '';
+            if (exemptParentTypes.includes(issueTypeName)) continue;
+
+            totalFilteredTaskCount++;
+
             const assigneeIdentifier = issue.fields.assignee ? (issue.fields.assignee.emailAddress || issue.fields.assignee.displayName) : 'Unassigned';
             const assigneeName = issue.fields.assignee ? (issue.fields.assignee.displayName) : 'Unassigned';
             const estimateSeconds = issue.fields.timeoriginalestimate || 0;
@@ -115,7 +124,7 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
 
         // Format Báo cáo trả về Telegram
         let reportText = `📊 <b>BÁO CÁO EFFORT: ${detectedSprintName}</b>\n\n`;
-        reportText += `Tổng Task: ${data.issues.length} | Tổng Estimate: ${(totalSprintSeconds / 3600).toFixed(1)}h\n\n`;
+        reportText += `Tổng Task: ${totalFilteredTaskCount} | Tổng Estimate: ${(totalSprintSeconds / 3600).toFixed(1)}h\n\n`;
         reportText += `<b>Phân bổ theo Nhân sự:</b>\n`;
 
         // Tính toán và định dạng giờ
@@ -164,8 +173,8 @@ async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) 
     try {
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
-        // Xây dựng JQL: Lấy task chưa hoàn thành (loại Done, Closed, Cancelled)
-        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, "User Story", Task) AND status NOT IN (Done, Closed, Cancelled)`;
+        // Xây dựng JQL: Lấy task chưa hoàn thành (loại Done, Closed, Cancelled). Hạn chế quăng "User Story" vào JQL để tránh lỗi 400.
+        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task) AND status NOT IN (Done, Closed, Cancelled)`;
 
         // Xác định sprint_id và assignee filter
         let sprintId = null;
@@ -231,8 +240,12 @@ async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) 
  */
 async function renderSummaryView(bot, chatId, loadingMsg, issues, sprintName) {
     const assigneeMap = {};
+    const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
 
     for (const issue of issues) {
+        const issueTypeName = issue.fields.issuetype ? issue.fields.issuetype.name.toLowerCase() : '';
+        if (exemptParentTypes.includes(issueTypeName)) continue;
+
         const identifier = issue.fields.assignee ? (issue.fields.assignee.emailAddress || issue.fields.assignee.displayName) : 'Unassigned';
         const displayName = issue.fields.assignee ? (issue.fields.assignee.displayName) : 'Unassigned';
         const remainingSeconds = issue.fields.timeestimate || 0; // remainingEstimate
@@ -249,10 +262,17 @@ async function renderSummaryView(bot, chatId, loadingMsg, issues, sprintName) {
     }
 
     let reportText = `📋 <b>CÔNG VIỆC CÒN LẠI: ${sprintName}</b>\n\n`;
-    reportText += `Tổng task chưa xong: <b>${issues.length}</b>\n\n`;
 
     // Sắp xếp theo remaining giảm dần
     const sorted = Object.entries(assigneeMap).sort((a, b) => b[1].totalRemainingSeconds - a[1].totalRemainingSeconds);
+    
+    // Tính tổng số task đã duyệt qua (lọc bỏ ticket cha)
+    let totalFilteredTaskCount = 0;
+    for (const [identifier, info] of sorted) {
+        totalFilteredTaskCount += info.taskCount;
+    }
+
+    reportText += `Tổng task chưa xong: <b>${totalFilteredTaskCount}</b>\n\n`;
 
     for (const [identifier, info] of sorted) {
         const hours = (info.totalRemainingSeconds / 3600).toFixed(1);
@@ -281,10 +301,17 @@ async function renderSummaryView(bot, chatId, loadingMsg, issues, sprintName) {
 async function renderDetailView(bot, chatId, loadingMsg, issues, sprintName, assigneeName) {
     const baseUrl = config.JIRA.BASE_URL || 'https://your-company.atlassian.net';
 
+    // Lọc bỏ ticket cha trước
+    const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
+    const filteredIssues = issues.filter(issue => {
+        const issueTypeName = issue.fields.issuetype ? issue.fields.issuetype.name.toLowerCase() : '';
+        return !exemptParentTypes.includes(issueTypeName);
+    });
+
     let totalRemainingSeconds = 0;
 
     // Sắp xếp task theo remaining giảm dần (task nặng nhất lên trước)
-    const sortedIssues = issues.sort((a, b) => {
+    const sortedIssues = filteredIssues.sort((a, b) => {
         const remA = a.fields.timeestimate || 0;
         const remB = b.fields.timeestimate || 0;
         return remB - remA;
@@ -307,7 +334,7 @@ async function renderDetailView(bot, chatId, loadingMsg, issues, sprintName, ass
     }
 
     const totalHours = (totalRemainingSeconds / 3600).toFixed(1);
-    reportText += `\n<b>Tổng: ${issues.length} task | ~${totalHours}h remaining</b>`;
+    reportText += `\n<b>Tổng: ${filteredIssues.length} task | ~${totalHours}h remaining</b>`;
     reportText += `\n\n<i>🫣 Anh ${assigneeName} ơi~ còn ${totalHours}h việc nè, cố lên nha~</i>`;
 
     await bot.editMessageText(reportText, {
