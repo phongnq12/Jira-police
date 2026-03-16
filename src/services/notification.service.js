@@ -21,8 +21,9 @@ class NotificationService {
      * @param {string} title Tiêu đề
      * @param {string} markdownBody Nội dung báo cáo (ở dạng HTML để an toàn cho 2 platform)
      * @param {string} alertLevel Cấp độ (info/warning/error) - ánh xạ màu trên Teams 
+     * @param {string} targetChatId Tùy chọn truyền Chat ID thay vì lấy mặc định từ file Env
      */
-    async dispatchAlert(title, htmlBody, alertLevel = 'warning') {
+    async dispatchAlert(title, htmlBody, alertLevel = 'warning', targetChatId = null) {
         let themeColor = '0076D7'; // Blue - info
         if (alertLevel === 'warning') themeColor = 'F9A825'; // Orange
         if (alertLevel === 'error') themeColor = 'D32F2F';   // Red
@@ -39,7 +40,10 @@ class NotificationService {
                 // Đóng gói title & body để hợp format Telegram
                 const telegramEmoji = alertLevel === 'error' ? '🚨' : alertLevel === 'warning' ? '⚠️' : 'ℹ️';
                 const telegramText = `<b>${telegramEmoji} ${title}</b>\n\n${htmlBody}`;
-                await telegramService.sendMessage(telegramText);
+                
+                // Nếu gọi hàm dispatch có truyền ID group riêng (chế độ Multiple Projects), gửi vào group đó.
+                // Nếu targetChatId = null thì mặc định dùng ID khai báo trong service
+                await telegramService.sendMessage(telegramText, targetChatId);
             }
         } catch (error) {
             console.error('[NotificationService] Gặp sự cố không thể dispatch tin nhắn:', error.message);

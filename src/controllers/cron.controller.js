@@ -3,8 +3,7 @@ const jiraService = require('../services/jira.service');
 const messageService = require('../services/message.service');
 const notificationService = require('../services/notification.service');
 const env = require('../config/env');
-
-const PROJECT_KEY = env.JIRA.PROJECT_KEY;
+const projectConfig = require('../config/projects'); // Module quản lý nhóm telegram -> Jira Project
 
 /**
  * Hàm hỗ trợ tạm dừng (sleep) để tránh bị Rate Limit 429
@@ -17,11 +16,27 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function runDailyReport(isScanAll = false) {
     console.log(`[Cronjob] Bắt đầu chạy luồng quét Scheduled Report... (Scan All: ${isScanAll})`);
     try {
-        // Tìm tất cả các task chưa hoàn thành (Unresolved) trong dự án
-        let jql = `project = "${PROJECT_KEY}" AND resolution = Unresolved`;
-        if (!isScanAll) {
-            jql += ` AND sprint IN openSprints()`;
+        // Thay vì chỉ chạy cho 1 dự án lấy từ ENV, ta lấy toàn bộ các dự án đã khai báo trong projects.js
+        const activeProjects = projectConfig.getAllActiveProjects();
+        
+        if (activeProjects.length === 0) {
+            console.log(`[Cronjob] ⚠️ Hệ thống chưa khai báo bất kỳ Group ID / Project Key nào trong projects.js`);
+            return;
         }
+
+        console.log(`[Cronjob] Tìm thấy ${activeProjects.length} dự án cần quét:`, activeProjects.map(p => p.jiraProjectKey));
+
+        // CHẠY VÒNG LẶP CHO TỪNG DỰ ÁN
+        for (const projectInfo of activeProjects) {
+            console.log(`\n======================================================`);
+            console.log(`[Cronjob] Đang quét dự án: [${projectInfo.jiraProjectKey}] đẩy về Group: [${projectInfo.chatId}]`);
+            console.log(`======================================================\n`);
+            
+            // Xử lý logic như cũ, nhưng thay vì PROJECT_KEY tĩnh, dùng projectInfo.jiraProjectKey
+            let jql = `project = "${projectInfo.jiraProjectKey}" AND resolution = Unresolved`;
+            if (!isScanAll) {
+                jql += ` AND sprint IN openSprints()`;
+            }
 
         // Yêu cầu Jira API trả về các trường cần thiết để phân tích
         const data = await jiraService.searchIssues(jql, [
@@ -50,7 +65,7 @@ async function runDailyReport(isScanAll = false) {
 
             const summary = fields.summary;
             const status = fields.status ? fields.status.name : 'Unknown';
-            const assigneeName = fields.assignee ? fields.assignee.displayName : null;
+            const assigneeName = fields.assignee ? (fields.assignee.emailAddress || fields.assignee.displayName) : null;
             const issueTypeName = fields.issuetype ? fields.issuetype.name : 'Unknown';
 
             // --- KIỂM TRA MỤC 1 & 2 & 7: THIẾU THÔNG TIN & TRÀN ESTIMATE & THIẾU LOG WORK --- //
@@ -81,7 +96,7 @@ async function runDailyReport(isScanAll = false) {
                 missingInfoCount++;
                 console.log(`[Cronjob] Task ${key} thiếu thông tin: ${missingFields.join(', ')}. Tiến hành cảnh báo...`);
                 const missingMsg = messageService.missingInformationAlert(key, summary, assigneeName, missingFields);
-                await notificationService.dispatchAlert(`[Jira Master] 📝 THIẾU THÔNG TIN PLANNING`, missingMsg, 'info');
+                await notificationService.dispatchAlert(`[Jira Master] 📝 THIẾU THÔNG TIN PLANNING`, missingMsg, 'info', projectInfo.chatId);
                 await sleep(1000); // Tạm nghỉ 1s để tránh Telegram Rate Limit
             }
 
@@ -91,7 +106,7 @@ async function runDailyReport(isScanAll = false) {
                 if (timeSpent === 0) {
                     trackingWorklogCount++;
                     const alertMsg = messageService.missingWorkLogAlert(key, summary, assigneeName, status);
-                    await notificationService.dispatchAlert(`[Jira Master] ⏳ QUÊN LOG WORK`, alertMsg, 'warning');
+                    await notificationService.dispatchAlert(`[Jira Master] ⏳ QUÊN LOG WORK`, alertMsg, 'warning', projectInfo.chatId);
                     await sleep(1000); // Tạm nghỉ 1s
                 }
             }
@@ -105,7 +120,7 @@ async function runDailyReport(isScanAll = false) {
                     const spentHours = (fields.timespent / 3600).toFixed(1) + 'h';
 
                     const overMsg = messageService.overEstimateAlert(key, summary, assigneeName, origHours, spentHours);
-                    await notificationService.dispatchAlert(`[Jira Master] ⚠️ VƯỢT ESTIMATE`, overMsg, 'warning');
+                    await notificationService.dispatchAlert(`[Jira Master] ⚠️ VƯỢT ESTIMATE`, overMsg, 'warning', projectInfo.chatId);
                     await sleep(1000); // Tạm nghỉ 1s
                 }
             }
@@ -122,13 +137,13 @@ async function runDailyReport(isScanAll = false) {
                     overdueCount++;
                     // [Kịch bản 6]: Đã quá hạn (Overdue)
                     const overdueMsg = messageService.overdueAlert(key, summary, assigneeName, diffDays);
-                    await notificationService.dispatchAlert(`[Jira Master] 🔥 TASK QUÁ HẠN`, overdueMsg, 'error');
+                    await notificationService.dispatchAlert(`[Jira Master] 🔥 TASK QUÁ HẠN`, overdueMsg, 'error', projectInfo.chatId);
                     await sleep(1000); // Tạm nghỉ 1s
                 } else if (diffDays === 0) {
                     deadlineTodayCount++;
                     // [Kịch bản 2]: Đúng ngày hôm nay là Deadline (Due date = Today)
                     const deadlineMsg = messageService.deadlineTodayAlert(key, summary, assigneeName, status);
-                    await notificationService.dispatchAlert(`[Jira Master] 🚨 DEADLINE HÔM NAY`, deadlineMsg, 'warning');
+                    await notificationService.dispatchAlert(`[Jira Master] 🚨 DEADLINE HÔM NAY`, deadlineMsg, 'warning', projectInfo.chatId);
                     await sleep(1000); // Tạm nghỉ 1s
                 }
             }
@@ -146,10 +161,12 @@ async function runDailyReport(isScanAll = false) {
             console.log(`  => ✅ KHÔNG CÓ CẢNH BÁO NÀO TỪ MỤC CHÍNH. Gửi thông báo khích lệ (All Clear).\n`);
             
             const allClearMsg = messageService.allClearAlert();
-            await notificationService.dispatchAlert(`[Jira Master] 🌟 BẦU TRỜI TRONG XANH`, allClearMsg, 'info');
+            await notificationService.dispatchAlert(`[Jira Master] 🌟 BẦU TRỜI TRONG XANH`, allClearMsg, 'info', projectInfo.chatId);
         } else {
             console.log(`  => 📡 Đã phát lệnh nã Notification.\n`);
         }
+        
+        } // ĐÓNG VÒNG LẶP FOR (projects)
 
     } catch (error) {
         console.error('[Cronjob] Lỗi khi chạy job:', error.message);

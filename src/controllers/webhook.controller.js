@@ -1,5 +1,6 @@
 const messageService = require('../services/message.service');
 const notificationService = require('../services/notification.service');
+const projectConfig = require('../config/projects');
 
 /**
  * Controller chuyên nhận và bóc tách Webhook từ Jira.
@@ -23,7 +24,19 @@ async function handleJiraWebhook(req, res) {
         // 2. Lấy thông tin cơ bản của Task
         const issueKey = issue.key;
         const issueSummary = issue.fields.summary;
-        const assigneeName = issue.fields.assignee ? issue.fields.assignee.displayName : null;
+        const assigneeName = issue.fields.assignee ? (issue.fields.assignee.emailAddress || issue.fields.assignee.displayName) : null;
+        
+        // 2.5 Mapping Project Key --> Chat ID
+        const taskProjectKey = issue.fields.project ? issue.fields.project.key : (issueKey.split('-')[0] || null);
+        let targetChatId = null;
+        
+        // Truy ngược lại: Tìm xem Project này đang đấu với Group ID nào
+        for (const [chatId, config] of Object.entries(projectConfig.projectRoutingMap)) {
+            if (config.jiraProjectKey === taskProjectKey) {
+                targetChatId = chatId;
+                break;
+            }
+        }
 
         // 3. Xử lý Logic dò Changelog (Bắt quả tang thay đổi)
         if (webhookEvent === 'jira:issue_updated' && payload.changelog && payload.changelog.items) {
@@ -41,14 +54,14 @@ async function handleJiraWebhook(req, res) {
                 // 🔔 Scenario 4: Chuyển Status sang Blocked
                 if (field === 'status' && toString.toLowerCase().includes('blocked')) {
                     const alertMsg = messageService.blockedAlert(issueKey, issueSummary, assigneeName);
-                    await notificationService.dispatchAlert(`[Jira Master] 🛑 STATUS ALERT`, alertMsg, 'error');
+                    await notificationService.dispatchAlert(`[Jira Master] 🛑 STATUS ALERT`, alertMsg, 'error', targetChatId);
                 }
 
                 // 🔔 Scenario 5: Đổi Due Date nhưng không xin phép (Không kèm comment lý do)
                 if (field === 'duedate') {
                     if (!hasComment) { // Đây mẹo logic cực hay của Jira Master
                         const alertMsg = messageService.silentDueDateChangeAlert(issueKey, issueSummary, assigneeName, fromString, toString);
-                        await notificationService.dispatchAlert(`[Jira Master] 👀 DUE DATE CHANGED`, alertMsg, 'warning');
+                        await notificationService.dispatchAlert(`[Jira Master] 👀 DUE DATE CHANGED`, alertMsg, 'warning', targetChatId);
                     }
                 }
 
@@ -59,7 +72,7 @@ async function handleJiraWebhook(req, res) {
                         const timeSpent = issue.fields.timespent || 0;
                         if (timeSpent === 0) {
                             const alertMsg = messageService.missingWorkLogAlert(issueKey, issueSummary, assigneeName, toString);
-                            await notificationService.dispatchAlert(`[Jira Master] ⏳ QUÊN LOG WORK`, alertMsg, 'warning');
+                            await notificationService.dispatchAlert(`[Jira Master] ⏳ QUÊN LOG WORK`, alertMsg, 'warning', targetChatId);
                         }
                     }
                 }

@@ -1,6 +1,7 @@
 const storageService = require('../services/storage.service');
 const jiraService = require('../services/jira.service');
 const config = require('../config/env');
+const projectConfig = require('../config/projects');
 const cronController = require('./cron.controller');
 
 /**
@@ -16,10 +17,13 @@ function initCommands(bot) {
     bot.on('message', async (msg) => {
         console.log(`[Telegram] Nhận được tin nhắn rác từ Chat ID: ${msg.chat.id}. Loại chat: ${msg.chat.type}`);
 
-        // Chỉ xử lý tin nhắn trong Test Group hoặc từ tài khoản hợp lệ
+        // Chú ý: Không chặn chết theo 1 Test Group ID nữa, mà phải linh hoạt theo File Routing.
         const chatId = String(msg.chat.id);
-        if (chatId !== testGroupId && msg.chat.type !== 'private') {
-            console.log(`[Telegram] ⛔️ Bỏ qua tin nhắn do khác Group ID. (Config nội bộ: ${testGroupId})`);
+        const mappedProjectKey = projectConfig.getProjectKeyByChatId(chatId, config.JIRA.PROJECT_KEY);
+
+        // NẾU group id này chưa được khai báo TRONG projects.js, và cũng chả phải nhắn Private cho Bot, chặn nó liền:
+        if (!projectConfig.projectRoutingMap[chatId] && msg.chat.type !== 'private') {
+            console.log(`[Telegram] ⛔️ Bỏ qua tin nhắn do Group ID chưa được đăng ký trong projects.js: ${chatId}`);
             return;
         }
 
@@ -28,12 +32,12 @@ function initCommands(bot) {
 
         // Lệnh: /check_effort [sprint_id]
         if (text.startsWith('/check_effort') || text.startsWith('@JiraMaster check_effort')) {
-            await handleCheckEffort(bot, chatId, text);
+            await handleCheckEffort(bot, chatId, text, mappedProjectKey);
         }
 
         // Lệnh: /check_remaining_tasks [sprint_id] hoặc /check_remaining_tasks @name
         if (text.startsWith('/check_remaining_tasks') || text.startsWith('@JiraMaster check_remaining_tasks')) {
-            await handleCheckRemainingTasks(bot, chatId, text);
+            await handleCheckRemainingTasks(bot, chatId, text, mappedProjectKey);
         }
 
         // Lệnh: /mute_sprint [sprint_id]
@@ -57,7 +61,7 @@ function initCommands(bot) {
  * Logic xử lý lệnh Check Effort
  * Gom nhóm toàn bộ Task trong Sprint và cộng dồn Original Estimate theo từng Assignee
  */
-async function handleCheckEffort(bot, chatId, text) {
+async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
     // Bóc tách tham số (Ví dụ: /check_effort 142)
     const parts = text.split(' ');
     const sprintId = parts[1]; // Lấy tham số phía sau
@@ -66,7 +70,7 @@ async function handleCheckEffort(bot, chatId, text) {
     const loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang trích xuất dữ liệu từ Jira cho anh. Đợi em xíu nha~ ✨');
 
     try {
-        const projectKey = config.JIRA.PROJECT_KEY || 'PROJ';
+        const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // JQL tìm kiếm các task thuộc Sprint Active hoặc Sprint ID cụ thể
         let jql = `project = "${projectKey}" AND issuetype != Epic`;
@@ -95,13 +99,13 @@ async function handleCheckEffort(bot, chatId, text) {
         let totalSprintSeconds = 0;
 
         for (const issue of data.issues) {
-            const assigneeName = issue.fields.assignee ? issue.fields.assignee.displayName : 'Unassigned';
+            const assigneeIdentifier = issue.fields.assignee ? (issue.fields.assignee.emailAddress || issue.fields.assignee.displayName) : 'Unassigned';
             const estimateSeconds = issue.fields.timeoriginalestimate || 0;
 
-            if (!effortMap[assigneeName]) {
-                effortMap[assigneeName] = 0;
+            if (!effortMap[assigneeIdentifier]) {
+                effortMap[assigneeIdentifier] = 0;
             }
-            effortMap[assigneeName] += estimateSeconds;
+            effortMap[assigneeIdentifier] += estimateSeconds;
             totalSprintSeconds += estimateSeconds;
         }
 
@@ -145,7 +149,7 @@ async function handleCheckEffort(bot, chatId, text) {
  * Gom nhóm các task chưa hoàn thành theo Assignee, tổng hợp Remaining Estimate.
  * Hỗ trợ xem chi tiết theo tên assignee.
  */
-async function handleCheckRemainingTasks(bot, chatId, text) {
+async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) {
     const parts = text.split(' ');
     const param1 = parts[1]; // Có thể là sprint_id hoặc tên assignee
     const param2 = parts.slice(2).join(' '); // Tên assignee (nếu có param1 là sprint_id)
@@ -153,7 +157,7 @@ async function handleCheckRemainingTasks(bot, chatId, text) {
     const loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang kiểm tra danh sách công việc còn lại cho anh~ Đợi em xíu nha 💕');
 
     try {
-        const projectKey = config.JIRA.PROJECT_KEY || 'PROJ';
+        const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // Xây dựng JQL: Lấy task chưa hoàn thành (loại Done, Closed, Cancelled)
         let jql = `project = "${projectKey}" AND issuetype != Epic AND status NOT IN (Done, Closed, Cancelled)`;
@@ -224,7 +228,7 @@ async function renderSummaryView(bot, chatId, loadingMsg, issues, sprintName) {
     const assigneeMap = {};
 
     for (const issue of issues) {
-        const name = issue.fields.assignee ? issue.fields.assignee.displayName : 'Unassigned';
+        const name = issue.fields.assignee ? (issue.fields.assignee.emailAddress || issue.fields.assignee.displayName) : 'Unassigned';
         const remainingSeconds = issue.fields.timeestimate || 0; // remainingEstimate
 
         if (!assigneeMap[name]) {

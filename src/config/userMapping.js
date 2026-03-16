@@ -1,22 +1,38 @@
 /**
  * Bản đồ ánh xạ người dùng (User Mapping)
- * Giúp quy đổi từ thông tin người dùng trên Jira sang tài khoản thật trên Telegram / MS Teams.
+ * Giúp quy đổi từ email (hoặc tên hiển thị/accountId) trên Jira sang tài khoản thật trên Telegram / MS Teams.
  */
 
-// Format từ điển: [Jira_Username_hoặc_AccountId]: { telegram: '@username', teams: 'email' }
+// Format từ điển: [Jira_Email_hoặc_DisplayName]: { telegram: '@username', teams: 'email' }
 const userDictionary = {
-    // Thay thế bằng dữ liệu thật của team bạn
-    "tuan.dev": {
-        telegram: "@TuanDev_TL",
-        teams: "tuan.dev@company.local"
+    // Thay thế bằng email cty thật của team bạn
+    "tuyenbq@synodus.com": {
+        telegram: "@hyo_caspian",
+        teams: "tuyenbq@synodus.com"
     },
-    "pm.manager": {
-        telegram: "@ProjectManager_Boss",
-        teams: "pm.manager@company.local"
+    "nguyetdt@aequitas.vn": {
+        telegram: "@nguyetdt1988",
+        teams: "nguyetdt@aequitas.vn"
     },
-    "ba.tester": {
-        telegram: "@Hanh_BA",
-        teams: "hanh.ba@company.local"
+    "hiepnn@synodus.com": {
+        telegram: "@hiepnn30",
+        teams: "hiepnn@synodus.com"
+    },
+     "luunv@synodus.com": {
+        telegram: "@hwunguyen",
+        teams: "luunv@synodus.com"
+    },
+     "longpt@synodus.com": {
+        telegram: "@TrentPham9102",
+        teams: "longpt@synodus.com"
+    },
+     "binhpt@synodus.com": {
+        telegram: "@binhpt689",
+        teams: "binhpt@synodus.com"
+    },
+     "lamtt@synodus.com": {
+        telegram: "@itslamtran",
+        teams: "lamtt@synodus.com"
     }
 };
 
@@ -24,12 +40,12 @@ const userDictionary = {
  * Láy ra thẻ Tag (@Mention) dựa trên Platform đang sử dụng.
  * Bao gồm cả cơ chế làm giả Fake Tag (Sandbox) để bảo vệ nhân sự thật khỏi notification ping lúc chạy thử nghiệm.
  *
- * @param {string} jiraIdentifier Tên định danh từ Jira (vd: displayName, accountId)
+ * @param {string} jiraIdentifier Tên định danh từ Jira (vd: emailAddress, displayName, accountId)
  * @param {string} platform Nền tảng đang gửi ('telegram', 'teams')
- * @param {boolean} isSandbox Chế độ Test (mặc định true) -> Sinh Fake Tag thay vì Tag thật
+ * @param {boolean} isSandbox Chế độ Test (mặc định false để test thật) -> Sinh Fake Tag thay vì Tag thật
  * @returns {string} Chuỗi format dùng để gắn thẳng vào text báo cáo
  */
-function getMentionTag(jiraIdentifier, platform, isSandbox = true) {
+function getMentionTag(jiraIdentifier, platform, isSandbox = false) {
     if (!jiraIdentifier) {
         return '<b>@Unassigned</b>';
     }
