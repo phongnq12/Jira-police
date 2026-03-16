@@ -100,12 +100,16 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
 
         for (const issue of data.issues) {
             const assigneeIdentifier = issue.fields.assignee ? (issue.fields.assignee.emailAddress || issue.fields.assignee.displayName) : 'Unassigned';
+            const assigneeName = issue.fields.assignee ? (issue.fields.assignee.displayName) : 'Unassigned';
             const estimateSeconds = issue.fields.timeoriginalestimate || 0;
 
             if (!effortMap[assigneeIdentifier]) {
-                effortMap[assigneeIdentifier] = 0;
+                effortMap[assigneeIdentifier] = {
+                    displayName: assigneeName,
+                    seconds: 0
+                };
             }
-            effortMap[assigneeIdentifier] += estimateSeconds;
+            effortMap[assigneeIdentifier].seconds += estimateSeconds;
             totalSprintSeconds += estimateSeconds;
         }
 
@@ -115,8 +119,9 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
         reportText += `<b>Phân bổ theo Nhân sự:</b>\n`;
 
         // Tính toán và định dạng giờ
-        for (const [name, seconds] of Object.entries(effortMap)) {
-            const hours = (seconds / 3600).toFixed(1);
+        for (const [identifier, info] of Object.entries(effortMap)) {
+            const hours = (info.seconds / 3600).toFixed(1);
+            const name = info.displayName;
 
             // Logic cảnh báo cấu hình từ biến môi trường
             const underloadHours = config.SPRINT_THRESHOLDS.UNDERLOAD_HOURS;
@@ -228,14 +233,19 @@ async function renderSummaryView(bot, chatId, loadingMsg, issues, sprintName) {
     const assigneeMap = {};
 
     for (const issue of issues) {
-        const name = issue.fields.assignee ? (issue.fields.assignee.emailAddress || issue.fields.assignee.displayName) : 'Unassigned';
+        const identifier = issue.fields.assignee ? (issue.fields.assignee.emailAddress || issue.fields.assignee.displayName) : 'Unassigned';
+        const displayName = issue.fields.assignee ? (issue.fields.assignee.displayName) : 'Unassigned';
         const remainingSeconds = issue.fields.timeestimate || 0; // remainingEstimate
 
-        if (!assigneeMap[name]) {
-            assigneeMap[name] = { taskCount: 0, totalRemainingSeconds: 0 };
+        if (!assigneeMap[identifier]) {
+            assigneeMap[identifier] = { 
+                displayName: displayName, 
+                taskCount: 0, 
+                totalRemainingSeconds: 0 
+            };
         }
-        assigneeMap[name].taskCount++;
-        assigneeMap[name].totalRemainingSeconds += remainingSeconds;
+        assigneeMap[identifier].taskCount++;
+        assigneeMap[identifier].totalRemainingSeconds += remainingSeconds;
     }
 
     let reportText = `📋 <b>CÔNG VIỆC CÒN LẠI: ${sprintName}</b>\n\n`;
@@ -244,16 +254,18 @@ async function renderSummaryView(bot, chatId, loadingMsg, issues, sprintName) {
     // Sắp xếp theo remaining giảm dần
     const sorted = Object.entries(assigneeMap).sort((a, b) => b[1].totalRemainingSeconds - a[1].totalRemainingSeconds);
 
-    for (const [name, info] of sorted) {
+    for (const [identifier, info] of sorted) {
         const hours = (info.totalRemainingSeconds / 3600).toFixed(1);
+        const name = info.displayName;
         let statusIcon = '';
         if (info.totalRemainingSeconds === 0 && info.taskCount > 0) {
             statusIcon = ' ⚠️ <i>(Chưa estimate)</i>';
         }
-        reportText += `👤 <b>${name}</b>: ${info.taskCount} task | ~${hours}h remaining${statusIcon}\n`;
+        
+        reportText += `👤 <b>${name}</b> 👉 ${hours}h <i>(${info.taskCount} task)</i> ${statusIcon}\n`;
     }
 
-    reportText += `\n<i>💡 Xem chi tiết: /check_remaining_tasks tên_nhân_viên</i>`;
+    reportText += `\n<i>💡 Dùng /check_remaining_tasks [tên_người] để xem chi tiết nhé~</i>`;
 
     await bot.editMessageText(reportText, {
         chat_id: chatId,
