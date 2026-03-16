@@ -18,22 +18,26 @@ const userDictionary = {
         telegram: "@hiepnn30",
         teams: "hiepnn@synodus.com"
     },
-     "luunv@synodus.com": {
+    "luunv@synodus.com": {
         telegram: "@hwunguyen",
         teams: "luunv@synodus.com"
     },
-     "longpt@synodus.com": {
+    "longpt@synodus.com": {
         telegram: "@TrentPham9102",
         teams: "longpt@synodus.com"
     },
-     "binhpt@synodus.com": {
+    "binhpt@synodus.com": {
         telegram: "@binhpt689",
         teams: "binhpt@synodus.com"
     },
-     "lamtt@synodus.com": {
+    "lamtt@synodus.com": {
         telegram: "@itslamtran",
         teams: "lamtt@synodus.com"
-    }
+    },
+    "phongnq@aequitas.com": {
+        telegram: "@phong123107",
+        teams: "phongnq@aequitas.com"
+    },
 };
 
 /**
