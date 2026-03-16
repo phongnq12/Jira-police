@@ -3,6 +3,8 @@
  * Mục đích: Mapping giữa ID của Group Telegram và Tên/Key của thư mục Jira tương ứng.
  * Thiết kế cho hệ thống chạy 1 Server (1 Instance) có khả năng phục vụ nhiều dự án.
  */
+const env = require('./env');
+
 const projectRoutingMap = {
     // Để giữ nguyên tính chất đang chạy ổn định: 
     // Chúng ta lấy ID Group hiện tại (-5185115610) trỏ vào Project Key Cũ (X25RDDIGILEND)
@@ -18,6 +20,21 @@ const projectRoutingMap = {
     //     projectName: "Dự án Dự phòng 2"
     // }
 };
+
+// TỰ ĐỘNG MERGE cấu hình biến môi trường (.env / Render) vào hệ thống
+// Đảm bảo không làm vỡ các setup cũ trên hosting
+if (env.TELEGRAM.TEST_GROUP_ID && env.JIRA.PROJECT_KEY) {
+    const defaultChatId = String(env.TELEGRAM.TEST_GROUP_ID);
+    
+    // Chỉ thêm vào nếu mảng config tĩnh (ở trên) chưa khai báo ID group này
+    if (!projectRoutingMap[defaultChatId]) {
+        projectRoutingMap[defaultChatId] = {
+            jiraProjectKey: env.JIRA.PROJECT_KEY,
+            projectName: "Dự Án Mặc Định (Từ ENV)"
+        };
+        console.log(`[Config] 🔌 Đã tự động tải cấu hình Render Env cho Dự án: ${env.JIRA.PROJECT_KEY}`);
+    }
+}
 
 /**
  * Hàm hỗ trợ lấy Jira Project Key tùy theo Group ID người dùng đang Chat.
