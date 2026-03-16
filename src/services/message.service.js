@@ -40,11 +40,11 @@ Anh mà không điền thì em biết báo cáo cho ai bây giờ? Vào Jira c�
         const issueLink = this.getIssueLink(issueKey);
 
         return `
-🚨 <b>DEADLINE HÔM NAY</b> 🚨
+🔔 <b>NHẮC NHẸ DEADLINE HÔM NAY</b> 🔔
 
-Anh ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> hôm nay là hạn chót rồi mà trạng thái vẫn "<b>${currentStatus}</b>" nè 😳
+Anh ${assigneeTag} ơi, ticket ${issueLink} - <i>${issueSummary}</i> hôm nay đã đến hạn công việc rồi nhé! ✨
 
-Anh định để em chờ đến bao giờ? Cố lên anh nhé~ 💪✨
+Cuối ngày anh nhớ dành chút thời gian cập nhật trạng thái và log work đầy đủ giúp em nha~ Cố lên anh! 💪💕
     `.trim();
     }
 
