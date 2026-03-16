@@ -73,7 +73,7 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // JQL tìm kiếm các task thuộc Sprint Active hoặc Sprint ID cụ thể
-        let jql = `project = "${projectKey}" AND issuetype != Epic`;
+        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, "User Story", Task)`;
         if (sprintId && !isNaN(sprintId)) {
             jql += ` AND sprint = ${sprintId}`;
         } else {
@@ -165,7 +165,7 @@ async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) 
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // Xây dựng JQL: Lấy task chưa hoàn thành (loại Done, Closed, Cancelled)
-        let jql = `project = "${projectKey}" AND issuetype != Epic AND status NOT IN (Done, Closed, Cancelled)`;
+        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, "User Story", Task) AND status NOT IN (Done, Closed, Cancelled)`;
 
         // Xác định sprint_id và assignee filter
         let sprintId = null;

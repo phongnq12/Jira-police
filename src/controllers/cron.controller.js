@@ -74,14 +74,20 @@ async function runDailyReport(isScanAll = false) {
             const isBugLike = issueTypeName.toLowerCase().includes('bug');
 
             const missingFields = [];
+
+            // Danh sách các loại ticket cha (Parent Tickets) được miễn trừ kiểm tra Planning & Log Work
+            const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
+            const isExemptParent = exemptParentTypes.includes(issueTypeName.toLowerCase());
             
             // Due date: Bỏ qua kiểm tra nếu đang ở trạng thái To do/Open (áp dụng MỌI LOẠI ticket)
-            if (!fields.duedate && !isInitStatus) {
+            // VÀ bỏ qua nếu là vé cha (Epic, Story, Task)
+            if (!fields.duedate && !isInitStatus && !isExemptParent) {
                 missingFields.push('Due Date');
             }
 
             // Estimate: Bỏ qua kiểm tra nếu đang ở To do/Open NHƯNG CHỈ áp dụng cho vé Bug/Sub-bug
-            if (!fields.timeoriginalestimate && fields.timeoriginalestimate !== 0) {
+            // VÀ bỏ qua nếu là vé cha (Epic, Story, Task)
+            if (!fields.timeoriginalestimate && fields.timeoriginalestimate !== 0 && !isExemptParent) {
                 if (!(isInitStatus && isBugLike)) {
                     missingFields.push('Original Estimate');
                 }
@@ -101,7 +107,7 @@ async function runDailyReport(isScanAll = false) {
             }
 
             // [Kịch bản 7]: Task đang chạy thực tế nhưng Time Spent đang là 0
-            if (status.toLowerCase().includes('in progress') || status.toLowerCase().includes('doing')) {
+            if ((status.toLowerCase().includes('in progress') || status.toLowerCase().includes('doing')) && !isExemptParent) {
                 const timeSpent = fields.timespent || 0;
                 if (timeSpent === 0) {
                     trackingWorklogCount++;
