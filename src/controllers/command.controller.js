@@ -103,6 +103,9 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
         const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
 
         for (const issue of data.issues) {
+            const status = issue.fields.status ? issue.fields.status.name.toLowerCase() : '';
+            if (status === 'cancelled') continue;
+
             const issueTypeName = issue.fields.issuetype ? issue.fields.issuetype.name.toLowerCase() : '';
             if (exemptParentTypes.includes(issueTypeName)) continue;
 

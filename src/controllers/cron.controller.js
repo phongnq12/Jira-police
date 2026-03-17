@@ -132,7 +132,7 @@ async function runDailyReport(isScanAll = false) {
             }
 
             // --- KIỂM TRA MỤC 3 & 4: DEADLINE VÀ QUÁ HẠN --- //
-            if (fields.duedate) {
+            if (fields.duedate && !isIgnored) {
                 const dueDate = new Date(fields.duedate);
                 dueDate.setHours(0, 0, 0, 0);
 
