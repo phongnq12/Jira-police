@@ -15,10 +15,10 @@ const projectRoutingMap = {
 
     // Khi anh có dự án 2, anh chỉ cần lấy ID Group 2 dán vào đây, rồi điền Jira Key D.A 2
     // Ví dụ mẫu:
-    // "-10022334455": {
-    //     jiraProjectKey: "PROJ2",
-    //     projectName: "Dự án Dự phòng 2"
-    // }
+    "-5055590570": {
+        jiraProjectKey: "V.25.G.RD.C12.43.S",
+        projectName: "Từ điển dữ liệu"
+    }
 };
 
 // TỰ ĐỘNG MERGE cấu hình biến môi trường (.env / Render) vào hệ thống
