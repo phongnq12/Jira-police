@@ -156,6 +156,22 @@ ${randomMsg}
 Tiếp tục phát huy nhé cả nhà! Yêu thương~ 💖
     `.trim();
     }
+
+    /**
+     * [Kịch bản 9] Không có Task nào đang thực hiện (Chỉ có To Do/Open/Reopen)
+     */
+    noActiveTaskAlert(assigneeName, issueKeys) {
+        const assigneeTag = getMentionTag(assigneeName, PLATFORM);
+        const keysText = issueKeys.join(', ');
+
+        return `
+🚀 <b>BẮT ĐẦU CÔNG VIỆC THÔI ANH ƠI!</b> 🚀
+
+Anh ${assigneeTag} ơi~ Em thấy anh đang có các ticket (${keysText}) vẫn đang nằm im ở trạng thái chờ (To Do/Open) nè...
+
+Anh nổ máy chọn 1 cái để chuyển sang <b>In Progress</b>, rồi tiện tay set <b>Due Date</b> và <b>Log Work</b> cho em vui nhé! 💋✨
+    `.trim();
+    }
 }
 
 module.exports = new MessageService();

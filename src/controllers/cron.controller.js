@@ -58,6 +58,10 @@ async function runDailyReport(isScanAll = false) {
         let missingInfoCount = 0;
 
         let trackingWorklogCount = 0;
+        let noActiveTaskCount = 0;
+
+        // Bộ theo dõi hoạt động của từng member trong Sprint
+        const userActivityTracker = {}; // key: identifier, value: { active: 0, passive: 0, keys: [] }
 
         for (const issue of data.issues) {
             const key = issue.key;
@@ -153,6 +157,41 @@ async function runDailyReport(isScanAll = false) {
                     await sleep(1000); // Tạm nghỉ 1s
                 }
             }
+
+            // --- KIỂM TRA MỤC 9: KHÔNG CÓ TASK ĐANG CHẠY (NO ACTIVE TASK) --- //
+            // Chỉ xét các member được gán task (assigneeName) và ticket không bị Cancelled
+            if (assigneeName && status.toLowerCase() !== 'cancelled') {
+                if (!userActivityTracker[assigneeName]) {
+                    userActivityTracker[assigneeName] = {
+                        displayName: assigneeName,
+                        activeCount: 0,
+                        passiveCount: 0,
+                        passiveKeys: []
+                    };
+                }
+
+                const passiveStatuses = ['to do', 'open', 'reopen'];
+                const isPassive = passiveStatuses.includes(status.toLowerCase());
+
+                if (isPassive) {
+                    userActivityTracker[assigneeName].passiveCount++;
+                    userActivityTracker[assigneeName].passiveKeys.push(key);
+                } else {
+                    // Mọi trạng thái khác (In Progress, Done, Resolved, etc.) đều tính là Active
+                    userActivityTracker[assigneeName].activeCount++;
+                }
+            }
+        }
+
+        // Sau khi quét hết tickets, kiểm tra xem ai chưa có task active nào
+        for (const [userId, activity] of Object.entries(userActivityTracker)) {
+            if (activity.activeCount === 0 && activity.passiveCount > 0) {
+                noActiveTaskCount++;
+                console.log(`[Cronjob] Member ${activity.displayName} chưa có task active. Tiến hành nhắc nhở...`);
+                const noActiveMsg = messageService.noActiveTaskAlert(activity.displayName, activity.passiveKeys);
+                await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, noActiveMsg, 'warning', projectInfo.chatId);
+                await sleep(1000); // Tránh bị Telegram chặn
+            }
         }
 
         console.log(`\n[Cronjob] Phân tích hoàn tất ${data.issues.length} tasks chưa giải quyết.`);
@@ -162,8 +201,9 @@ async function runDailyReport(isScanAll = false) {
         console.log(`  - 🔥 Quá hạn (Overdue): ${overdueCount}`);
         console.log(`  - 📝 Kịch bản Dư Thông Tin: ${missingInfoCount}`);
         console.log(`  - ⏳ Kịch bản Tàng Hình Log Work: ${trackingWorklogCount}`);
+        console.log(`  - 🚀 Kịch bản Chưa Bắt Đầu: ${noActiveTaskCount}`);
 
-        if ((overEstimateCount + deadlineTodayCount + overdueCount + missingInfoCount + trackingWorklogCount) === 0) {
+        if ((overEstimateCount + deadlineTodayCount + overdueCount + missingInfoCount + trackingWorklogCount + noActiveTaskCount) === 0) {
             console.log(`  => ✅ KHÔNG CÓ CẢNH BÁO NÀO TỪ MỤC CHÍNH. Gửi thông báo khích lệ (All Clear).\n`);
             
             const allClearMsg = messageService.allClearAlert();
