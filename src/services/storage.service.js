@@ -16,6 +16,11 @@ class StorageService {
         if (!fs.existsSync(DATA_FILE)) {
             fs.writeFileSync(DATA_FILE, JSON.stringify({ mutedSprints: [] }, null, 2), 'utf8');
         }
+
+        // Cảnh báo khi chạy trên Render (ephemeral filesystem)
+        if (process.env.RENDER) {
+            console.warn('⚠️ [StorageService] Đang chạy trên Render (Ephemeral FS). Dữ liệu mute-settings.json sẽ bị reset khi redeploy/restart!');
+        }
     }
 
     _readData() {

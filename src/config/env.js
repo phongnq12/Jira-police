@@ -10,6 +10,7 @@ module.exports = {
     USERNAME: process.env.JIRA_USERNAME,
     API_TOKEN: process.env.JIRA_API_TOKEN,
     PROJECT_KEY: process.env.JIRA_PROJECT_KEY || 'PROJ',
+    WEBHOOK_SECRET: process.env.JIRA_WEBHOOK_SECRET || null,
   },
 
   TELEGRAM: {

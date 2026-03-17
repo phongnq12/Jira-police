@@ -2,6 +2,7 @@ const { CronJob } = require('cron');
 const jiraService = require('../services/jira.service');
 const messageService = require('../services/message.service');
 const notificationService = require('../services/notification.service');
+const storageService = require('../services/storage.service');
 const env = require('../config/env');
 const projectConfig = require('../config/projects'); // Module quản lý nhóm telegram -> Jira Project
 
@@ -45,14 +46,37 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                 jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
             }
 
-        // Yêu cầu Jira API trả về các trường cần thiết để phân tích
+        // Yêu cầu Jira API trả về các trường cần thiết để phân tích (bao gồm sprint để kiểm tra mute)
         const data = await jiraService.searchIssues(jql, [
-            'summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent', 'issuetype'
+            'summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent', 'issuetype', 'sprint'
         ]);
 
         if (!data.issues || data.issues.length === 0) {
             console.log(`[Cronjob] Dự án [${projectInfo.jiraProjectKey}] không có task nào đang mở/nợ.`);
             continue; // Dùng continue để chuyển sang dự án tiếp theo, không dùng return làm ngắt cả chu kỳ
+        }
+
+        // Kiểm tra Mute Sprint: Nếu toàn bộ issues thuộc 1 sprint bị mute → skip
+        const sprintIds = new Set();
+        for (const issue of data.issues) {
+            if (issue.fields.sprint && issue.fields.sprint.id) {
+                sprintIds.add(String(issue.fields.sprint.id));
+            }
+        }
+        const mutedSprintIds = [...sprintIds].filter(id => storageService.isSprintMuted(id));
+        if (mutedSprintIds.length > 0) {
+            // Lọc bỏ các issues thuộc sprint đã bị mute
+            const originalCount = data.issues.length;
+            data.issues = data.issues.filter(issue => {
+                const sid = issue.fields.sprint && issue.fields.sprint.id ? String(issue.fields.sprint.id) : null;
+                return !sid || !storageService.isSprintMuted(sid);
+            });
+            console.log(`[Cronjob] 🔇 Đã lọc ${originalCount - data.issues.length} tasks thuộc Sprint bị Mute (IDs: ${mutedSprintIds.join(', ')})`);
+
+            if (data.issues.length === 0) {
+                console.log(`[Cronjob] Tất cả tasks thuộc Sprint đang bị Mute. Bỏ qua dự án [${projectInfo.jiraProjectKey}].`);
+                continue;
+            }
         }
 
         // Lấy thời điểm hôm nay (reset giờ về 0 để so sánh ranh giới ngày)
@@ -79,7 +103,7 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
             const assigneeName = fields.assignee ? (fields.assignee.emailAddress || fields.assignee.displayName) : null;
             const issueTypeName = fields.issuetype ? fields.issuetype.name : 'Unknown';
 
-            // --- KIỂM TRA MỤC 1 & 2 & 7: THIẾU THÔNG TIN & TRÀN ESTIMATE & THIẾU LOG WORK --- //
+            // --- KIỂM TRA KB6 & KB5 & KB7: THIẾU THÔNG TIN & TRÀN ESTIMATE & THIẾU LOG WORK --- //
             const initStatuses = ['to do', 'open'];
             const isInitStatus = initStatuses.includes(status.toLowerCase());
             const isBugLike = issueTypeName.toLowerCase().includes('bug');
@@ -104,7 +128,7 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                 }
             }
 
-            // [Kịch bản 1]: Báo động nếu task vứt trống thông tin Planning
+            // [Kịch bản 6]: Báo động nếu task vứt trống thông tin Planning
             // Mặc định luôn bỏ qua các task đã đóng/hủy (Cancelled, Done, Resolved, Closed)
             const deadStatuses = ['cancelled', 'done', 'resolved', 'closed'];
             const isIgnored = deadStatuses.includes(status.toLowerCase());
@@ -128,7 +152,7 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                 }
             }
 
-            // [Kịch bản 3]: Kiểm tra xem số giờ Log Work có vượt mức Estimate gốc ban đầu chưa
+            // [Kịch bản 5]: Kiểm tra xem số giờ Log Work có vượt mức Estimate gốc ban đầu chưa
             if (fields.timeoriginalestimate && fields.timespent) {
                 if (fields.timespent > fields.timeoriginalestimate) { // Cùng đơn vị là Seconds (Giây)
                     overEstimateCount++;
@@ -142,7 +166,7 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                 }
             }
 
-            // --- KIỂM TRA MỤC 3 & 4: DEADLINE VÀ QUÁ HẠN --- //
+            // --- KIỂM TRA KB3 & KB4: QUÁ HẠN VÀ DEADLINE --- //
             // CHỈ áp dụng cho Sub-tasks/Bugs. Loại bỏ hoàn toàn các vé Cha (Epic, Story, Task) theo yêu cầu
             if (fields.duedate && !isIgnored && !isExemptParent) {
                 const dueDate = new Date(fields.duedate);
@@ -153,20 +177,20 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
 
                 if (diffDays > 0) {
                     overdueCount++;
-                    // [Kịch bản 6]: Đã quá hạn (Overdue)
+                    // [Kịch bản 3]: Đã quá hạn (Overdue)
                     const overdueMsg = messageService.overdueAlert(key, summary, assigneeName, diffDays);
                     await notificationService.dispatchAlert(`[Jira Master] 🔥 TASK QUÁ HẠN`, overdueMsg, 'error', projectInfo.chatId);
                     await sleep(1000); // Tạm nghỉ 1s
                 } else if (diffDays === 0) {
                     deadlineTodayCount++;
-                    // [Kịch bản 2]: Đúng ngày hôm nay là Deadline (Due date = Today)
+                    // [Kịch bản 4]: Đúng ngày hôm nay là Deadline (Due date = Today)
                     const deadlineMsg = messageService.deadlineTodayAlert(key, summary, assigneeName, status);
                     await notificationService.dispatchAlert(`[Jira Master] 🚨 DEADLINE HÔM NAY`, deadlineMsg, 'warning', projectInfo.chatId);
                     await sleep(1000); // Tạm nghỉ 1s
                 }
             }
 
-            // --- KIỂM TRA MỤC 9: KHÔNG CÓ TASK ĐANG CHẠY (NO ACTIVE TASK) --- //
+            // --- KIỂM TRA KB9: KHÔNG CÓ TASK ĐANG CHẠY (NO ACTIVE TASK) --- //
             // Chỉ xét các member được gán task (assigneeName) và ticket không bị Cancelled. Bỏ qua các vé Cha (Epic, Story, Task)
             if (assigneeName && status.toLowerCase() !== 'cancelled' && !isExemptParent) {
                 if (!userActivityTracker[assigneeName]) {

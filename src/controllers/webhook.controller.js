@@ -1,12 +1,24 @@
 const messageService = require('../services/message.service');
 const notificationService = require('../services/notification.service');
 const projectConfig = require('../config/projects');
+const config = require('../config/env');
 
 /**
  * Controller chuyên nhận và bóc tách Webhook từ Jira.
  */
 async function handleJiraWebhook(req, res) {
     try {
+        // === WEBHOOK AUTHENTICATION ===
+        // Nếu đã cấu hình JIRA_WEBHOOK_SECRET, yêu cầu request phải gửi kèm header khớp
+        const webhookSecret = config.JIRA.WEBHOOK_SECRET;
+        if (webhookSecret) {
+            const incomingSecret = req.headers['x-webhook-secret'];
+            if (incomingSecret !== webhookSecret) {
+                console.warn(`🚫 [Webhook] Từ chối request: Secret không khớp hoặc thiếu. IP: ${req.ip}`);
+                return res.status(401).json({ error: 'Unauthorized: Invalid webhook secret' });
+            }
+        }
+
         const payload = req.body;
 
         // Trả về HTTP 200 ngay lập tức để Jira không bị Timeout và không Retry nã đạn liên tục
@@ -51,21 +63,21 @@ async function handleJiraWebhook(req, res) {
                 const fromString = item.fromString || 'Trống';
                 const toString = item.toString || 'Trống';
 
-                // 🔔 Scenario 4: Chuyển Status sang Blocked
+                // 🔔 Kịch bản 1: Chuyển Status sang Blocked
                 if (field === 'status' && toString.toLowerCase().includes('blocked')) {
                     const alertMsg = messageService.blockedAlert(issueKey, issueSummary, assigneeName);
                     await notificationService.dispatchAlert(`[Jira Master] 🛑 STATUS ALERT`, alertMsg, 'error', targetChatId);
                 }
 
-                // 🔔 Scenario 5: Đổi Due Date nhưng không xin phép (Không kèm comment lý do)
+                // 🔔 Kịch bản 2: Đổi Due Date nhưng không xin phép (Không kèm comment lý do)
                 if (field === 'duedate') {
-                    if (!hasComment) { // Đây mẹo logic cực hay của Jira Master
+                    if (!hasComment) {
                         const alertMsg = messageService.silentDueDateChangeAlert(issueKey, issueSummary, assigneeName, fromString, toString);
                         await notificationService.dispatchAlert(`[Jira Master] 👀 DUE DATE CHANGED`, alertMsg, 'warning', targetChatId);
                     }
                 }
 
-                // 🔔 Scenario 7: Kéo Done rụp phát nhưng quên Log Work
+                // 🔔 Kịch bản 7: Kéo Done rụp phát nhưng quên Log Work
                 if (field === 'status') {
                     const doneStatuses = ['done', 'resolved', 'closed'];
                     if (doneStatuses.includes(toString.toLowerCase())) {
