@@ -32,8 +32,8 @@ async function runDailyReport(isScanAll = false) {
             console.log(`[Cronjob] Đang quét dự án: [${projectInfo.jiraProjectKey}] đẩy về Group: [${projectInfo.chatId}]`);
             console.log(`======================================================\n`);
             
-            // Xử lý logic như cũ, nhưng thay vì PROJECT_KEY tĩnh, dùng projectInfo.jiraProjectKey
-            let jql = `project = "${projectInfo.jiraProjectKey}" AND resolution = Unresolved`;
+            // Xử lý logic như cũ, nhưng thay vì PROJECT_KEY tĩnh, dùng projectInfo.jiraProjectKey. Thêm NOT IN (Epic, Story, Task) để bỏ qua vé cha.
+            let jql = `project = "${projectInfo.jiraProjectKey}" AND issuetype NOT IN (Epic, Story, Task) AND resolution = Unresolved`;
             if (!isScanAll) {
                 // Chỉ lấy Sprint đang Open và KHÔNG lấy các Sprint tương lai (Future Sprints)
                 jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
@@ -161,8 +161,8 @@ async function runDailyReport(isScanAll = false) {
             }
 
             // --- KIỂM TRA MỤC 9: KHÔNG CÓ TASK ĐANG CHẠY (NO ACTIVE TASK) --- //
-            // Chỉ xét các member được gán task (assigneeName) và ticket không bị Cancelled
-            if (assigneeName && status.toLowerCase() !== 'cancelled') {
+            // Chỉ xét các member được gán task (assigneeName) và ticket không bị Cancelled. Bỏ qua các vé Cha (Epic, Story, Task)
+            if (assigneeName && status.toLowerCase() !== 'cancelled' && !isExemptParent) {
                 if (!userActivityTracker[assigneeName]) {
                     userActivityTracker[assigneeName] = {
                         displayName: assigneeName,
