@@ -12,12 +12,18 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Quét toàn bộ các task đang mở và kiểm tra các điều kiện cảnh báo.
+ * @param {boolean} isScanAll 
+ * @param {string} specificChatId 
  */
-async function runDailyReport(isScanAll = false) {
-    console.log(`[Cronjob] Bắt đầu chạy luồng quét Scheduled Report... (Scan All: ${isScanAll})`);
+async function runDailyReport(isScanAll = false, specificChatId = null) {
+    console.log(`[Cronjob] Bắt đầu chạy luồng quét Scheduled Report... (Scan All: ${isScanAll}, Target Chat: ${specificChatId || 'All'})`);
     try {
         // Thay vì chỉ chạy cho 1 dự án lấy từ ENV, ta lấy toàn bộ các dự án đã khai báo trong projects.js
-        const activeProjects = projectConfig.getAllActiveProjects();
+        let activeProjects = projectConfig.getAllActiveProjects();
+        
+        if (specificChatId) {
+            activeProjects = activeProjects.filter(p => p.chatId.toString() === specificChatId.toString());
+        }
         
         if (activeProjects.length === 0) {
             console.log(`[Cronjob] ⚠️ Hệ thống chưa khai báo bất kỳ Group ID / Project Key nào trong projects.js`);

@@ -383,7 +383,7 @@ async function handleUnmuteSprint(bot, chatId, text) {
 async function handleScanAll(bot, chatId) {
     const loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang quét lại toàn bộ ngóc ngách của Dự Án nha. Đợi em chạy báo cáo một lát~ 🚀');
     try {
-        await cronController.runDailyReport(true); // true = isScanAll
+        await cronController.runDailyReport(true, chatId); // true = isScanAll, truyền thêm chatId để chỉ quét dự án của group này
         bot.editMessageText('✅ Em đã gửi xong báo cáo quét toàn diện trên kênh thông báo chung rồi nha! Bầu trời vẫn xanh đúng không anh? 💖', { chat_id: chatId, message_id: loadingMsg.message_id });
     } catch (error) {
         console.error('Lỗi Scan All:', error.message);
