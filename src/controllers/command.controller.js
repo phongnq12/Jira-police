@@ -73,12 +73,12 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // JQL lấy task. (Không cho "User Story" vào JQL vì nếu Jira project đó không dùng loại thẻ này thì JQL sẽ lỗi 400 Bad Request)
-        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task)`;
+        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task) AND resolution = Unresolved`;
         if (sprintId && !isNaN(sprintId)) {
             jql += ` AND sprint = ${sprintId}`;
         } else {
             // Mặc định lấy Sprint đang mở tĩnh của dự án
-            jql += ` AND sprint IN openSprints()`;
+            jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
         }
 
         // Yêu cầu Jira API trả về thông tin estimate

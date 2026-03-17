@@ -35,7 +35,8 @@ async function runDailyReport(isScanAll = false) {
             // Xử lý logic như cũ, nhưng thay vì PROJECT_KEY tĩnh, dùng projectInfo.jiraProjectKey
             let jql = `project = "${projectInfo.jiraProjectKey}" AND resolution = Unresolved`;
             if (!isScanAll) {
-                jql += ` AND sprint IN openSprints()`;
+                // Chỉ lấy Sprint đang Open và KHÔNG lấy các Sprint tương lai (Future Sprints)
+                jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
             }
 
         // Yêu cầu Jira API trả về các trường cần thiết để phân tích
@@ -44,8 +45,8 @@ async function runDailyReport(isScanAll = false) {
         ]);
 
         if (!data.issues || data.issues.length === 0) {
-            console.log('[Cronjob] Dự án hiện tại không có task nào đang mở/nợ.');
-            return;
+            console.log(`[Cronjob] Dự án [${projectInfo.jiraProjectKey}] không có task nào đang mở/nợ.`);
+            continue; // Dùng continue để chuyển sang dự án tiếp theo, không dùng return làm ngắt cả chu kỳ
         }
 
         // Lấy thời điểm hôm nay (reset giờ về 0 để so sánh ranh giới ngày)
@@ -136,7 +137,8 @@ async function runDailyReport(isScanAll = false) {
             }
 
             // --- KIỂM TRA MỤC 3 & 4: DEADLINE VÀ QUÁ HẠN --- //
-            if (fields.duedate && !isIgnored) {
+            // CHỈ áp dụng cho Sub-tasks/Bugs. Loại bỏ hoàn toàn các vé Cha (Epic, Story, Task) theo yêu cầu
+            if (fields.duedate && !isIgnored && !isExemptParent) {
                 const dueDate = new Date(fields.duedate);
                 dueDate.setHours(0, 0, 0, 0);
 
