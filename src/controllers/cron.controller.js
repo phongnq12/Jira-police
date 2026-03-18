@@ -3,6 +3,9 @@ const jiraService = require('../services/jira.service');
 const messageService = require('../services/message.service');
 const notificationService = require('../services/notification.service');
 const storageService = require('../services/storage.service');
+const reportOrchestrator = require('../services/report_orchestrator.service');
+const telegramService = require('../services/telegram.service');
+const snapshotRepo = require('../database/snapshot.repo');
 const env = require('../config/env');
 const projectConfig = require('../config/projects'); // Module quản lý nhóm telegram -> Jira Project
 
@@ -251,7 +254,73 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
     }
 }
 
+/**
+ * Chạy luồng Reporting: Thu thập metrics → Lưu snapshot → Render chart → Gửi Telegram
+ */
+async function runReportingJob() {
+    console.log(`[ReportCron] 📊 Bắt đầu chạy luồng Reporting & Snapshot...`);
+    try {
+        const activeProjects = projectConfig.getAllActiveProjects();
+        if (activeProjects.length === 0) return;
 
+        for (const projectInfo of activeProjects) {
+            console.log(`[ReportCron] Đang thu thập metrics cho: ${projectInfo.jiraProjectKey}`);
+
+            const metricsData = await reportOrchestrator.collectMetrics(projectInfo.jiraProjectKey);
+            if (!metricsData) {
+                console.log(`[ReportCron] Không có data cho ${projectInfo.jiraProjectKey}. Bỏ qua.`);
+                continue;
+            }
+
+            // 1. Lưu snapshot vào DB
+            await reportOrchestrator.saveSnapshot(metricsData);
+
+            // 2. Render Radar Chart (Sức khỏe dự án)
+            try {
+                const radarBuffer = reportOrchestrator.generateRadarChart(metricsData);
+                const m = metricsData.metrics;
+                const caption = `🏥 <b>BÁO CÁO SỨC KHỎE DỰ ÁN</b>\n` +
+                    `📌 ${metricsData.sprintName || projectInfo.jiraProjectKey}\n\n` +
+                    `📋 Tổng task: ${m.totalTasks} | 🔥 Overdue: ${m.overdueTasks}\n` +
+                    `🚫 Blocked: ${m.blockedTasks} | ❓ Missing Est: ${m.missingEst}\n` +
+                    `⏱ Time Spent: ${(m.totalTimeSpentSeconds / 3600).toFixed(1)}h`;
+
+                await telegramService.sendPhoto(radarBuffer, caption, projectInfo.chatId);
+                await sleep(1500);
+            } catch (chartErr) {
+                console.error(`[ReportCron] Lỗi render/gửi Radar Chart:`, chartErr.message);
+            }
+
+            // 3. Render Efficiency Bar Chart 
+            try {
+                if (metricsData.assigneeEfficiency.length > 0) {
+                    const barBuffer = reportOrchestrator.generateEfficiencyChart(metricsData);
+                    await telegramService.sendPhoto(barBuffer, `📊 <b>Hiệu suất theo Nhân sự</b> — ${metricsData.sprintName || projectInfo.jiraProjectKey}`, projectInfo.chatId);
+                    await sleep(1500);
+                }
+            } catch (chartErr) {
+                console.error(`[ReportCron] Lỗi render/gửi Efficiency Chart:`, chartErr.message);
+            }
+
+            // 4. Burndown Chart (nếu đã có historical data)
+            try {
+                const burndownBuffer = await reportOrchestrator.generateBurndownChart(projectInfo.jiraProjectKey, metricsData.sprintName);
+                if (burndownBuffer) {
+                    await telegramService.sendPhoto(burndownBuffer, `🔥 <b>Burndown Chart</b> — ${metricsData.sprintName || projectInfo.jiraProjectKey}`, projectInfo.chatId);
+                    await sleep(1500);
+                }
+            } catch (chartErr) {
+                console.error(`[ReportCron] Lỗi render/gửi Burndown Chart:`, chartErr.message);
+            }
+
+            console.log(`[ReportCron] ✅ Đã hoàn tất báo cáo cho ${projectInfo.jiraProjectKey}`);
+        }
+
+        console.log(`[ReportCron] 🎉 Luồng Reporting đã hoàn tất cho tất cả dự án.`);
+    } catch (error) {
+        console.error('[ReportCron] ❌ Lỗi khi chạy reporting job:', error.message);
+    }
+}
 
 /**
  * Khởi tạo bộ đếm thời gian
@@ -259,6 +328,10 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
 function initCronJobs() {
     console.log('⏳ Đang khởi tạo các luồng Cronjob...');
 
+    // --- Khởi tạo Database nếu có cấu hình ---
+    snapshotRepo.init();
+
+    // === CRONJOB 1: Quét cảnh báo (Alert Scan) ===
     let schedule = env.CRON_SCHEDULE || '0 * * * *';
     
     // Loại bỏ dấu ngoặc kép/đơn thừa (lỗi phổ biến khi nhập ENV trên hosting dashboard)
@@ -266,11 +339,11 @@ function initCronJobs() {
     
     // Thư viện 'cron' dùng 6 trường (giây phút giờ ngày tháng thứ)
     // Nếu user đang dùng 5 trường (node-cron style), tự động thêm '0' (giây) ở đầu
-    const fields = schedule.split(/\s+/);
+    let fields = schedule.split(/\s+/);
     if (fields.length === 5) {
         schedule = `0 ${schedule}`;
     }
-    console.log(`📅 Lịch Cron sẽ chạy: ${schedule}`);
+    console.log(`📅 Lịch Cron Alert sẽ chạy: ${schedule}`);
     
     try {
         const job = new CronJob(
@@ -283,13 +356,40 @@ function initCronJobs() {
             true, // start
             'Asia/Ho_Chi_Minh' // timezone
         );
-        console.log(`✅ Đã đặt lịch quét thành công! Lịch: ${schedule} (Timezone: Asia/Ho_Chi_Minh)`);
+        console.log(`✅ Đã đặt lịch quét Alert thành công! Lịch: ${schedule} (Timezone: Asia/Ho_Chi_Minh)`);
     } catch (err) {
-        console.error('❌ Lỗi khởi tạo Cron:', err.message);
+        console.error('❌ Lỗi khởi tạo Alert Cron:', err.message);
+    }
+
+    // === CRONJOB 2: Reporting & Snapshot (23:59 hàng ngày) ===
+    let reportSchedule = env.REPORT_CRON_SCHEDULE || '59 23 * * *';
+    reportSchedule = reportSchedule.replace(/['"]/g, '').trim();
+    let reportFields = reportSchedule.split(/\s+/);
+    if (reportFields.length === 5) {
+        reportSchedule = `0 ${reportSchedule}`;
+    }
+    console.log(`📅 Lịch Cron Report sẽ chạy: ${reportSchedule}`);
+
+    try {
+        const reportJob = new CronJob(
+            reportSchedule,
+            async () => {
+                console.log(`[ReportCron] Đang thực thi Reporting job theo lịch: ${reportSchedule}`);
+                await runReportingJob();
+            },
+            null,
+            true,
+            'Asia/Ho_Chi_Minh'
+        );
+        console.log(`✅ Đã đặt lịch Reporting thành công! Lịch: ${reportSchedule} (Timezone: Asia/Ho_Chi_Minh)`);
+    } catch (err) {
+        console.error('❌ Lỗi khởi tạo Report Cron:', err.message);
     }
 }
 
 module.exports = {
     initCronJobs,
-    runDailyReport
+    runDailyReport,
+    runReportingJob
 };
+

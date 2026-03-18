@@ -1,4 +1,5 @@
 const axios = require('axios');
+const FormData = require('form-data');
 const config = require('../config/env');
 
 /**
@@ -39,6 +40,78 @@ class TelegramService {
             throw error;
         }
     }
+
+    /**
+     * Gửi ảnh (Buffer) kèm caption qua Telegram API
+     * @param {Buffer} photoBuffer - Buffer ảnh PNG
+     * @param {string} caption - Caption dưới ảnh (hỗ trợ HTML)
+     * @param {string} chatId - ID nhóm nhận
+     */
+    async sendPhoto(photoBuffer, caption = '', chatId = this.testGroupId) {
+        if (!this.botToken || !chatId) {
+            console.warn('⚠️ Cảnh báo: Cấu hình Telegram chưa đầy đủ. Bỏ qua gửi ảnh.');
+            return;
+        }
+
+        try {
+            const form = new FormData();
+            form.append('chat_id', chatId);
+            form.append('photo', photoBuffer, { filename: 'chart.png', contentType: 'image/png' });
+            if (caption) {
+                form.append('caption', caption);
+                form.append('parse_mode', 'HTML');
+            }
+
+            const response = await axios.post(`${this.baseUrl}/sendPhoto`, form, {
+                headers: form.getHeaders()
+            });
+            console.log('✅ Đã gửi thành công ảnh báo cáo tới Telegram.');
+            return response.data;
+        } catch (error) {
+            console.error('❌ Lỗi khi gửi ảnh Telegram:', error.message);
+            if (error.response) {
+                console.error('Chi tiết lỗi:', error.response.data);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Gửi file tài liệu (Buffer) qua Telegram API
+     * @param {Buffer} docBuffer - Buffer file (VD: .xlsx)
+     * @param {string} filename - Tên file hiển thị cho người nhận
+     * @param {string} caption - Caption kèm theo
+     * @param {string} chatId - ID nhóm nhận
+     */
+    async sendDocument(docBuffer, filename = 'report.xlsx', caption = '', chatId = this.testGroupId) {
+        if (!this.botToken || !chatId) {
+            console.warn('⚠️ Cảnh báo: Cấu hình Telegram chưa đầy đủ. Bỏ qua gửi file.');
+            return;
+        }
+
+        try {
+            const form = new FormData();
+            form.append('chat_id', chatId);
+            form.append('document', docBuffer, { filename, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            if (caption) {
+                form.append('caption', caption);
+                form.append('parse_mode', 'HTML');
+            }
+
+            const response = await axios.post(`${this.baseUrl}/sendDocument`, form, {
+                headers: form.getHeaders()
+            });
+            console.log('✅ Đã gửi thành công file tài liệu tới Telegram.');
+            return response.data;
+        } catch (error) {
+            console.error('❌ Lỗi khi gửi file Telegram:', error.message);
+            if (error.response) {
+                console.error('Chi tiết lỗi:', error.response.data);
+            }
+            throw error;
+        }
+    }
 }
 
 module.exports = new TelegramService();
+

@@ -3,6 +3,10 @@ const jiraService = require('../services/jira.service');
 const config = require('../config/env');
 const projectConfig = require('../config/projects');
 const cronController = require('./cron.controller');
+const reportOrchestrator = require('../services/report_orchestrator.service');
+const bottleneckService = require('../services/bottleneck.service');
+const excelService = require('../services/excel.service');
+const telegramService = require('../services/telegram.service');
 
 /**
  * Điều hướng các lệnh nhận từ Telegram Bot
@@ -53,6 +57,16 @@ function initCommands(bot) {
         // Lệnh: /scan_all
         if (text.startsWith('/scan_all') || text.startsWith('@JiraMaster scan_all')) {
             await handleScanAll(bot, chatId);
+        }
+
+        // Lệnh: /export_report — Xuất báo cáo Excel chi tiết
+        if (text.startsWith('/export_report') || text.startsWith('@JiraMaster export_report')) {
+            await handleExportReport(bot, chatId, mappedProjectKey);
+        }
+
+        // Lệnh: /report_now — Chạy báo cáo có biểu đồ ngay lập tức
+        if (text.startsWith('/report_now') || text.startsWith('@JiraMaster report_now')) {
+            await handleReportNow(bot, chatId);
         }
     });
 }
@@ -388,6 +402,93 @@ async function handleScanAll(bot, chatId) {
     } catch (error) {
         console.error('Lỗi Scan All:', error.message);
         bot.editMessageText('❌ Ối! Có lỗi xảy ra khi quét dự án rồi anh ơi~ Xem lại log server giúp em nhé 🥺', { chat_id: chatId, message_id: loadingMsg.message_id });
+    }
+}
+
+/**
+ * Logic xử lý lệnh Export Report (Xuất báo cáo Excel)
+ * Thu thập metrics → chạy bottleneck analysis → tạo Excel → gửi file qua Telegram
+ */
+async function handleExportReport(bot, chatId, projectKeyFallback) {
+    const loadingMsg = await bot.sendMessage(chatId, '📊 Em đang tổng hợp dữ liệu và xuất báo cáo Excel cho anh~ Đợi em xíu nha! ✨');
+
+    try {
+        const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
+
+        // 1. Thu thập metrics
+        const metricsData = await reportOrchestrator.collectMetrics(projectKey);
+        if (!metricsData) {
+            return bot.editMessageText('😢 Em không tìm thấy task nào trong Active Sprint để làm báo cáo á anh ơi~', { chat_id: chatId, message_id: loadingMsg.message_id });
+        }
+
+        // 2. Chạy bottleneck analysis
+        let bottleneckData = null;
+        try {
+            await bot.editMessageText('🔍 Em đang phân tích Bottleneck cho từng ticket... Chờ em tí nhé 💪', { chat_id: chatId, message_id: loadingMsg.message_id });
+            bottleneckData = await reportOrchestrator.runBottleneckAnalysis(metricsData.issues);
+        } catch (bottleneckErr) {
+            console.error('[ExportReport] Lỗi bottleneck analysis:', bottleneckErr.message);
+        }
+
+        // 3. Tạo Excel
+        const reportData = {
+            bottleneck: bottleneckData,
+            assigneeEfficiency: metricsData.assigneeEfficiency,
+            summary: {
+                totalTasks: metricsData.metrics.totalTasks,
+                overdueTasks: metricsData.metrics.overdueTasks,
+                blockedTasks: metricsData.metrics.blockedTasks,
+                missingEst: metricsData.metrics.missingEst,
+                totalTimeSpentHours: parseFloat((metricsData.metrics.totalTimeSpentSeconds / 3600).toFixed(1)),
+                bottleneckStatus: bottleneckData?.summary?.bottleneckStatus || 'N/A',
+                totalReopens: bottleneckData?.summary?.totalReopens || 0
+            }
+        };
+
+        // Cập nhật reopens vào assignee efficiency nếu có data bottleneck
+        if (bottleneckData?.issueAnalysis) {
+            const reopenMap = {};
+            for (const item of bottleneckData.issueAnalysis) {
+                if (!reopenMap[item.assignee]) reopenMap[item.assignee] = 0;
+                reopenMap[item.assignee] += item.reopenCount;
+            }
+            for (const ae of reportData.assigneeEfficiency) {
+                ae.reopens = reopenMap[ae.name] || 0;
+            }
+        }
+
+        const excelBuffer = await excelService.generateReport(reportData, projectKey);
+
+        // 4. Gửi file qua Telegram
+        const today = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+        const filename = `report_${projectKey}_${today}.xlsx`;
+
+        await telegramService.sendDocument(
+            excelBuffer,
+            filename,
+            `📊 <b>Báo cáo chi tiết</b> — ${metricsData.sprintName || projectKey}\n\n💡 File Excel gồm 3 Sheet: Bottleneck Tasks, Assignee Efficiency, Project Summary.`,
+            chatId
+        );
+
+        await bot.editMessageText('✅ Em đã gửi file báo cáo Excel rồi nha anh~ Xem giùm em nhé 💖', { chat_id: chatId, message_id: loadingMsg.message_id });
+
+    } catch (error) {
+        console.error('[ExportReport] Lỗi:', error.message);
+        bot.editMessageText('❌ Ối! Có lỗi xảy ra khi tạo báo cáo Excel rồi anh ơi~ Xem log giùm em nha 🥺', { chat_id: chatId, message_id: loadingMsg.message_id });
+    }
+}
+
+/**
+ * Logic xử lý lệnh Report Now (Chạy báo cáo biểu đồ ngay lập tức)
+ */
+async function handleReportNow(bot, chatId) {
+    const loadingMsg = await bot.sendMessage(chatId, '📊 Em đang chạy Reporting job ngay bây giờ cho anh~ Đợi em xíu nha! 🚀');
+    try {
+        await cronController.runReportingJob();
+        bot.editMessageText('✅ Đã chạy xong báo cáo! Các biểu đồ đã được gửi ở trên nha anh~ 💖', { chat_id: chatId, message_id: loadingMsg.message_id });
+    } catch (error) {
+        console.error('[ReportNow] Lỗi:', error.message);
+        bot.editMessageText('❌ Ối! Có lỗi xảy ra khi chạy báo cáo rồi anh ơi~ 🥺', { chat_id: chatId, message_id: loadingMsg.message_id });
     }
 }
 
