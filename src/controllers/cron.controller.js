@@ -400,7 +400,10 @@ function initCronJobs() {
         console.error('❌ Lỗi khởi tạo Alert Cron:', err.message);
     }
 
-    // === CRONJOB 2: Reporting & Snapshot (23:59 hàng ngày) ===
+    // === CRONJOB 2: Reporting & Snapshot ===
+    // ⏸ TẠM TẮT: Dùng lệnh /report_now để chạy thủ công cho từng group.
+    // Khi muốn bật lại, bỏ comment block bên dưới.
+    /*
     let reportSchedule = env.REPORT_CRON_SCHEDULE || '59 23 * * *';
     reportSchedule = reportSchedule.replace(/['"]/g, '').trim();
     let reportFields = reportSchedule.split(/\s+/);
@@ -424,6 +427,8 @@ function initCronJobs() {
     } catch (err) {
         console.error('❌ Lỗi khởi tạo Report Cron:', err.message);
     }
+    */
+    console.log('⏸ CRONJOB 2 (Reporting) đã tạm tắt. Dùng /report_now để chạy thủ công.');
 }
 
 module.exports = {
