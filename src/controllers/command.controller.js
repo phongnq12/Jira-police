@@ -484,7 +484,7 @@ async function handleExportReport(bot, chatId, projectKeyFallback) {
 async function handleReportNow(bot, chatId) {
     const loadingMsg = await bot.sendMessage(chatId, '📊 Em đang chạy Reporting job ngay bây giờ cho anh~ Đợi em xíu nha! 🚀');
     try {
-        await cronController.runReportingJob();
+        await cronController.runReportingJob(chatId);
         bot.editMessageText('✅ Đã chạy xong báo cáo! Các biểu đồ đã được gửi ở trên nha anh~ 💖', { chat_id: chatId, message_id: loadingMsg.message_id });
     } catch (error) {
         console.error('[ReportNow] Lỗi:', error.message);

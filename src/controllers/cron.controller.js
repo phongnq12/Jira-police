@@ -256,11 +256,15 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
 
 /**
  * Chạy luồng Reporting: Thu thập metrics → Lưu snapshot → Render chart → Gửi Telegram
+ * @param {string} specificChatId Nếu truyền vào, chỉ chạy cho group đó
  */
-async function runReportingJob() {
-    console.log(`[ReportCron] 📊 Bắt đầu chạy luồng Reporting & Snapshot...`);
+async function runReportingJob(specificChatId = null) {
+    console.log(`[ReportCron] 📊 Bắt đầu chạy luồng Reporting & Snapshot... (Target: ${specificChatId || 'All'})`);
     try {
-        const activeProjects = projectConfig.getAllActiveProjects();
+        let activeProjects = projectConfig.getAllActiveProjects();
+        if (specificChatId) {
+            activeProjects = activeProjects.filter(p => p.chatId.toString() === specificChatId.toString());
+        }
         if (activeProjects.length === 0) return;
 
         for (const projectInfo of activeProjects) {
