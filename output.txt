@@ -1,0 +1,30 @@
+[dotenv@17.3.1] injecting env (10) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+[dotenv@17.3.1] injecting env (0) from .env -- tip: 🤖 agentic secret storage: https://dotenvx.com/as2
+Querying: project = "V.25.G.RD.C12.43.S" AND resolution = Unresolved
+[JiraService] Lần thử 1/3 - JQL = "project = "V.25.G.RD.C12.43.S" AND resolution = Unresolved"...
+[V25GRDC1243S-32] Quản lý dự án                       | Status: Open         | Sprints: NO SPRINT DATA
+[V25GRDC1243S-29] PM 2 --> HP 6: Rating: chuẩn bị prototype | Status: Open         | Sprints: NO SPRINT DATA
+[V25GRDC1243S-28] Quản trị phân quyền: User-Role assignment | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-27] Quản trị phân quyền: Role CRUD      | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-26] Quản trị tài khoản: CRUD            | Status: In Progress  | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-25] [BE] Implement permission system    | Status: Cancelled    | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-24] [BE] Implement user service         | Status: Cancelled    | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-23] [BE] Implement auth service         | Status: Cancelled    | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-22] Chuẩn bị dự án                      | Status: Open         | Sprints: NO SPRINT DATA
+[V25GRDC1243S-21] Hỗ trợ setup domain môi trường dev  | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-20] Hỗ trợ setup CICD môi trường dev    | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-18] Hỗ trợ setup k8s môi trường dev     | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-15] Export excell                       | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-14] Import excell                       | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-13] Danh sách đơn vị                    | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-12] Sửa/Xóa đơn vị                      | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-11] Thêm đơn vị                         | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-10] [BE] Setup design system từ Codebase | Status: In Progress  | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-9] [FE] Setup design system từ Codebase | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-8] Setup infra cho DEV và STG          | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-7] Cấu hình danh mục                   | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-6] Quản trị đơn vị                     | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-5] Quản trị phân quyền                 | Status: Open         | Sprints: [ACTIVE: C12-TĐDL Sprint 1]
+[V25GRDC1243S-3] Tech preparation                    | Status: Open         | Sprints: NO SPRINT DATA
+[V25GRDC1243S-2] Infrastructure                      | Status: Open         | Sprints: NO SPRINT DATA
+[V25GRDC1243S-1] Cài đặt hệ thống                    | Status: Open         | Sprints: NO SPRINT DATA

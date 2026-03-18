@@ -106,6 +106,13 @@ class BottleneckService {
         for (let i = 0; i < issues.length; i++) {
             const issue = issues[i];
             const key = issue.key;
+            const status = issue.fields.status?.name || 'Unknown';
+
+            // Bỏ qua ticket Cancelled
+            if (status.toLowerCase() === 'cancelled') {
+                console.log(`[Bottleneck] ⏭ Bỏ qua ${key} (Cancelled)`);
+                continue;
+            }
 
             console.log(`[Bottleneck] Đang phân tích ${i + 1}/${issues.length}: ${key}`);
 

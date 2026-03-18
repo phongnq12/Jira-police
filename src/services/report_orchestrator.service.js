@@ -41,6 +41,12 @@ class ReportOrchestrator {
         let unloggedWorkCount = 0;
         let doneTasks = 0;
 
+        // Chi tiết ticket theo từng nhóm rủi ro
+        const overdueList = [];
+        const blockedList = [];
+        const missingEstList = [];
+        const unloggedList = [];
+
         // Hiệu suất theo Assignee
         const assigneeMap = {};
 
@@ -56,6 +62,9 @@ class ReportOrchestrator {
             const fields = issue.fields;
             const status = fields.status?.name || 'Unknown';
             const assigneeName = fields.assignee?.displayName || 'Unassigned';
+
+            // Bỏ qua ticket Cancelled
+            if (status.toLowerCase() === 'cancelled') continue;
 
             // Init assignee tracker
             if (!assigneeMap[assigneeName]) {
@@ -77,12 +86,14 @@ class ReportOrchestrator {
                 if (today > dueDate) {
                     overdueTasks++;
                     assigneeMap[assigneeName].overdueTasks++;
+                    overdueList.push(`${issue.key} (${assigneeName})`);
                 }
             }
 
             // Đếm Blocked
             if (status.toLowerCase().includes('blocked')) {
                 blockedTasks++;
+                blockedList.push(`${issue.key} (${assigneeName})`);
             }
 
             // Đếm Done
@@ -94,6 +105,7 @@ class ReportOrchestrator {
             // Đếm thiếu Estimation
             if (!fields.timeoriginalestimate) {
                 missingEst++;
+                missingEstList.push(`${issue.key} (${assigneeName})`);
             }
 
             // Tổng thời gian
@@ -107,6 +119,7 @@ class ReportOrchestrator {
             const activeStatuses = ['in progress', 'doing', 'developing'];
             if (activeStatuses.some(s => status.toLowerCase().includes(s)) && !fields.timespent) {
                 unloggedWorkCount++;
+                unloggedList.push(`${issue.key} (${assigneeName})`);
             }
         }
 
@@ -123,13 +136,19 @@ class ReportOrchestrator {
             reopens: a.reopens
         }));
 
+        // Đếm lại totalTasks sau khi loại bỏ cancelled
+        const activeTasks = issues.filter(i => {
+            const s = i.fields.status?.name || '';
+            return s.toLowerCase() !== 'cancelled';
+        });
+
         return {
             projectKey,
             sprintId,
             sprintName,
-            issues,
+            issues: activeTasks,
             metrics: {
-                totalTasks: issues.length,
+                totalTasks: activeTasks.length,
                 doneTasks,
                 overdueTasks,
                 blockedTasks,
@@ -137,6 +156,12 @@ class ReportOrchestrator {
                 unloggedWorkCount,
                 totalTimeSpentSeconds,
                 totalOriginalEstSeconds
+            },
+            detailLists: {
+                overdueList,
+                blockedList,
+                missingEstList,
+                unloggedList
             },
             assigneeEfficiency
         };

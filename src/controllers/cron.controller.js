@@ -279,15 +279,50 @@ async function runReportingJob(specificChatId = null) {
             // 1. Lưu snapshot vào DB
             await reportOrchestrator.saveSnapshot(metricsData);
 
-            // 2. Render Radar Chart (Sức khỏe dự án)
+            // 2. Render Radar Chart (Sức khỏe dự án) + Chi tiết ticket
             try {
                 const radarBuffer = reportOrchestrator.generateRadarChart(metricsData);
                 const m = metricsData.metrics;
-                const caption = `🏥 <b>BÁO CÁO SỨC KHỎE DỰ ÁN</b>\n` +
+                const dl = metricsData.detailLists;
+
+                // Build caption with detail
+                let caption = `🏥 <b>BÁO CÁO SỨC KHỎE DỰ ÁN</b>\n` +
                     `📌 ${metricsData.sprintName || projectInfo.jiraProjectKey}\n\n` +
-                    `📋 Tổng task: ${m.totalTasks} | 🔥 Overdue: ${m.overdueTasks}\n` +
-                    `🚫 Blocked: ${m.blockedTasks} | ❓ Missing Est: ${m.missingEst}\n` +
-                    `⏱ Time Spent: ${(m.totalTimeSpentSeconds / 3600).toFixed(1)}h`;
+                    `📋 Tổng task: ${m.totalTasks} | ✅ Done: ${m.doneTasks}\n` +
+                    `⏱ Time Spent: ${(m.totalTimeSpentSeconds / 3600).toFixed(1)}h\n`;
+
+                // Chi tiết Overdue
+                if (dl.overdueList.length > 0) {
+                    caption += `\n🔥 <b>Overdue (${dl.overdueList.length}):</b>\n`;
+                    caption += dl.overdueList.slice(0, 10).map(t => `  • ${t}`).join('\n');
+                    if (dl.overdueList.length > 10) caption += `\n  ...và ${dl.overdueList.length - 10} ticket khác`;
+                }
+
+                // Chi tiết Blocked
+                if (dl.blockedList.length > 0) {
+                    caption += `\n\n🚫 <b>Blocked (${dl.blockedList.length}):</b>\n`;
+                    caption += dl.blockedList.slice(0, 10).map(t => `  • ${t}`).join('\n');
+                    if (dl.blockedList.length > 10) caption += `\n  ...và ${dl.blockedList.length - 10} ticket khác`;
+                }
+
+                // Chi tiết Missing Estimation
+                if (dl.missingEstList.length > 0) {
+                    caption += `\n\n❓ <b>Missing Estimate (${dl.missingEstList.length}):</b>\n`;
+                    caption += dl.missingEstList.slice(0, 10).map(t => `  • ${t}`).join('\n');
+                    if (dl.missingEstList.length > 10) caption += `\n  ...và ${dl.missingEstList.length - 10} ticket khác`;
+                }
+
+                // Chi tiết Unlogged Work
+                if (dl.unloggedList.length > 0) {
+                    caption += `\n\n⏳ <b>Chưa Log Work (${dl.unloggedList.length}):</b>\n`;
+                    caption += dl.unloggedList.slice(0, 10).map(t => `  • ${t}`).join('\n');
+                    if (dl.unloggedList.length > 10) caption += `\n  ...và ${dl.unloggedList.length - 10} ticket khác`;
+                }
+
+                // Telegram caption limit = 1024 ký tự. Nếu vượt, cắt bớt.
+                if (caption.length > 1020) {
+                    caption = caption.substring(0, 1017) + '...';
+                }
 
                 await telegramService.sendPhoto(radarBuffer, caption, projectInfo.chatId);
                 await sleep(1500);
