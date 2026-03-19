@@ -17,55 +17,69 @@ class ExcelService {
         workbook.created = new Date();
 
         // ============================
-        // Sheet 1: Danh sách Task nghẽn
+        // Sheet 1: Chi tiết Task Analysis
         // ============================
-        const bottleneckSheet = workbook.addWorksheet('Bottleneck Tasks', {
+        const taskSheet = workbook.addWorksheet('Task Analysis', {
             properties: { tabColor: { argb: 'FFD32F2F' } }
         });
 
-        bottleneckSheet.columns = [
-            { header: 'Issue Key', key: 'key', width: 15 },
+        taskSheet.columns = [
+            { header: 'Issue Key', key: 'key', width: 20 },
+            { header: 'Parent Key', key: 'parentKey', width: 20 },
             { header: 'Summary', key: 'summary', width: 40 },
             { header: 'Status', key: 'status', width: 18 },
             { header: 'Assignee', key: 'assignee', width: 22 },
-            { header: 'Bottleneck Status', key: 'bottleneckStatus', width: 20 },
+            { header: 'Due Date', key: 'dueDate', width: 14 },
+            { header: 'Estimate (h)', key: 'estimateHours', width: 14 },
+            { header: 'Spent (h)', key: 'spentHours', width: 14 },
             { header: 'Aging (h)', key: 'agingHours', width: 12 },
-            { header: 'Re-open Count', key: 'reopenCount', width: 14 }
+            { header: 'Re-open', key: 'reopenCount', width: 10 },
+            { header: 'Done Date', key: 'doneDate', width: 20 }
         ];
 
-        // Style header row
-        this._styleHeaderRow(bottleneckSheet);
+        this._styleHeaderRow(taskSheet);
 
-        // Thêm data
         if (reportData.bottleneck?.issueAnalysis) {
             for (const item of reportData.bottleneck.issueAnalysis) {
-                // Tìm status ngâm lâu nhất
-                let maxStatus = '-';
-                let maxHours = 0;
-                for (const [status, hours] of Object.entries(item.statusAging)) {
-                    if (hours > maxHours) {
-                        maxHours = hours;
-                        maxStatus = status;
-                    }
-                }
+                // Tổng aging (tổng giờ ngâm ở tất cả trạng thái)
+                const totalAging = Object.values(item.statusAging).reduce((sum, h) => sum + h, 0);
 
-                bottleneckSheet.addRow({
+                const row = taskSheet.addRow({
                     key: item.key,
+                    parentKey: item.parentKey || '-',
                     summary: item.summary,
                     status: item.status,
                     assignee: item.assignee,
-                    bottleneckStatus: maxStatus,
-                    agingHours: maxHours,
-                    reopenCount: item.reopenCount
+                    dueDate: item.dueDate ? new Date(item.dueDate).toLocaleDateString('vi-VN') : '-',
+                    estimateHours: parseFloat(((item.originalEstimate || 0) / 3600).toFixed(1)),
+                    spentHours: parseFloat(((item.timeSpent || 0) / 3600).toFixed(1)),
+                    agingHours: parseFloat(totalAging.toFixed(1)),
+                    reopenCount: item.reopenCount,
+                    doneDate: item.doneDate ? new Date(item.doneDate).toLocaleString('vi-VN') : '-'
                 });
+
+                // Highlight aging > 24h (3 ngày làm việc)
+                if (totalAging > 24) {
+                    row.getCell('agingHours').fill = {
+                        type: 'pattern', pattern: 'solid',
+                        fgColor: { argb: 'FFFFEBEE' }
+                    };
+                    row.getCell('agingHours').font = { color: { argb: 'FFD32F2F' }, bold: true };
+                }
+
+                // Highlight re-open > 0
+                if (item.reopenCount > 0) {
+                    row.getCell('reopenCount').fill = {
+                        type: 'pattern', pattern: 'solid',
+                        fgColor: { argb: 'FFFFF3E0' }
+                    };
+                    row.getCell('reopenCount').font = { color: { argb: 'FFE65100' }, bold: true };
+                }
             }
         }
 
-        // Auto filter
-        bottleneckSheet.autoFilter = 'A1:G1';
-
-        // Đóng khung viền cho toàn bộ data
-        this._addBorders(bottleneckSheet);
+        taskSheet.autoFilter = 'A1:K1';
+        this._addBorders(taskSheet);
 
         // ====================================
         // Sheet 2: Hiệu suất theo Assignee
