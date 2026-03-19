@@ -75,6 +75,7 @@ class ReportOrchestrator {
                     estimateSeconds: 0,
                     spentSeconds: 0,
                     overdueTasks: 0,
+                    overdueTickets: [],
                     reopens: 0
                 };
             }
@@ -87,6 +88,7 @@ class ReportOrchestrator {
                 if (today > dueDate) {
                     overdueTasks++;
                     assigneeMap[assigneeName].overdueTasks++;
+                    assigneeMap[assigneeName].overdueTickets.push(issue.key);
                     overdueList.push(`${issue.key} (${assigneeName})`);
                 }
             }
@@ -134,6 +136,7 @@ class ReportOrchestrator {
                 ? parseFloat(((a.spentSeconds / a.estimateSeconds) * 100).toFixed(1))
                 : 0,
             overdueTasks: a.overdueTasks,
+            overdueTickets: a.overdueTickets || [],
             reopens: a.reopens
         }));
 

@@ -81,6 +81,7 @@ class ExcelService {
             { header: 'Spent (h)', key: 'spentHours', width: 14 },
             { header: 'Efficiency %', key: 'efficiency', width: 14 },
             { header: 'Overdue Tasks', key: 'overdueTasks', width: 14 },
+            { header: 'Overdue Tickets', key: 'overdueTickets', width: 40 },
             { header: 'Re-opens', key: 'reopens', width: 12 }
         ];
 
@@ -88,6 +89,8 @@ class ExcelService {
 
         if (reportData.assigneeEfficiency) {
             for (const item of reportData.assigneeEfficiency) {
+                const overdueTicketStr = (item.overdueTickets || []).join(', ');
+
                 const row = efficiencySheet.addRow({
                     name: item.name,
                     totalTasks: item.totalTasks,
@@ -95,6 +98,7 @@ class ExcelService {
                     spentHours: item.spentHours,
                     efficiency: item.efficiency,
                     overdueTasks: item.overdueTasks || 0,
+                    overdueTickets: overdueTicketStr,
                     reopens: item.reopens || 0
                 });
 
@@ -106,10 +110,20 @@ class ExcelService {
                         fgColor: { argb: 'FFFFF3E0' }
                     };
                 }
+
+                // Highlight overdue tickets bằng đỏ nhạt
+                if (overdueTicketStr) {
+                    row.getCell('overdueTickets').fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: 'FFFFEBEE' }
+                    };
+                    row.getCell('overdueTickets').font = { color: { argb: 'FFD32F2F' } };
+                }
             }
         }
 
-        efficiencySheet.autoFilter = 'A1:G1';
+        efficiencySheet.autoFilter = 'A1:H1';
         this._addBorders(efficiencySheet);
 
         // ========================================
