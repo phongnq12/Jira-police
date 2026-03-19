@@ -30,17 +30,33 @@ class ExcelService {
             { header: 'Status', key: 'status', width: 18 },
             { header: 'Assignee', key: 'assignee', width: 22 },
             { header: 'Due Date', key: 'dueDate', width: 14 },
+            { header: 'Done Date', key: 'doneDate', width: 20 },
+            { header: 'Overdue', key: 'overdue', width: 10 },
             { header: 'Estimate (h)', key: 'estimateHours', width: 14 },
             { header: 'Spent (h)', key: 'spentHours', width: 14 },
-
-            { header: 'Re-open', key: 'reopenCount', width: 10 },
-            { header: 'Done Date', key: 'doneDate', width: 20 }
+            { header: 'Re-open', key: 'reopenCount', width: 10 }
         ];
 
         this._styleHeaderRow(taskSheet);
 
         if (reportData.bottleneck?.issueAnalysis) {
             for (const item of reportData.bottleneck.issueAnalysis) {
+                // Tính overdue: chưa Done + quá hạn, hoặc Done sau hạn
+                const doneStatuses = ['done', 'resolved', 'closed'];
+                const isDone = doneStatuses.includes((item.status || '').toLowerCase());
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+
+                let isOverdue = false;
+                if (item.dueDate) {
+                    const dueDate = new Date(item.dueDate); dueDate.setHours(0, 0, 0, 0);
+                    if (!isDone && today > dueDate) {
+                        isOverdue = true;
+                    } else if (isDone && item.doneDate) {
+                        const doneDateObj = new Date(item.doneDate); doneDateObj.setHours(0, 0, 0, 0);
+                        if (doneDateObj > dueDate) isOverdue = true;
+                    }
+                }
+
                 const row = taskSheet.addRow({
                     key: item.key,
                     parentKey: item.parentKey || '-',
@@ -48,13 +64,21 @@ class ExcelService {
                     status: item.status,
                     assignee: item.assignee,
                     dueDate: item.dueDate ? new Date(item.dueDate).toLocaleDateString('vi-VN') : '-',
+                    doneDate: item.doneDate ? new Date(item.doneDate).toLocaleString('vi-VN') : '-',
+                    overdue: isOverdue ? 'Yes' : 'No',
                     estimateHours: parseFloat(((item.originalEstimate || 0) / 3600).toFixed(1)),
                     spentHours: parseFloat(((item.timeSpent || 0) / 3600).toFixed(1)),
-                    reopenCount: item.reopenCount,
-                    doneDate: item.doneDate ? new Date(item.doneDate).toLocaleString('vi-VN') : '-'
+                    reopenCount: item.reopenCount
                 });
 
-
+                // Highlight Overdue = Yes
+                if (isOverdue) {
+                    row.getCell('overdue').fill = {
+                        type: 'pattern', pattern: 'solid',
+                        fgColor: { argb: 'FFFF5252' }
+                    };
+                    row.getCell('overdue').font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                }
 
                 // Highlight re-open > 0
                 if (item.reopenCount > 0) {
@@ -67,7 +91,7 @@ class ExcelService {
             }
         }
 
-        taskSheet.autoFilter = 'A1:J1';
+        taskSheet.autoFilter = 'A1:K1';
         this._addBorders(taskSheet);
 
         // ====================================
