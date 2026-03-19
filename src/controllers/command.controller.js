@@ -64,9 +64,9 @@ function initCommands(bot) {
             await handleExportReport(bot, chatId, mappedProjectKey);
         }
 
-        // Lệnh: /report_now — Chạy báo cáo có biểu đồ ngay lập tức
+        // Lệnh: /report_now — ⏸ TẠM TẮT (biểu đồ đang tối ưu)
         if (text.startsWith('/report_now') || text.startsWith('@JiraMaster report_now')) {
-            await handleReportNow(bot, chatId);
+            await bot.sendMessage(chatId, '⏸ Chức năng biểu đồ đang được tối ưu. Vui lòng dùng /export_report để xuất báo cáo Excel nhé~');
         }
     });
 }
