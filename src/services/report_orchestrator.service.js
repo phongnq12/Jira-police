@@ -17,8 +17,9 @@ class ReportOrchestrator {
      * @returns {object} Dữ liệu metrics tổng hợp + mảng issues
      */
     async collectMetrics(projectKey) {
-        // JQL: Lấy tất cả Sub-task/Bug trong Active Sprint (không lấy Done/Cancelled để tính remaining)
-        const jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task) AND sprint IN openSprints() AND sprint NOT IN futureSprints() AND resolution = Unresolved`;
+        // JQL: Lấy TẤT CẢ task trong Active Sprint (bao gồm Done) để tính đúng effort
+        // Cancelled sẽ được lọc bằng JS phía dưới
+        const jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task) AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
 
         const data = await jiraService.searchIssues(jql, [
             'summary', 'status', 'assignee', 'duedate',
