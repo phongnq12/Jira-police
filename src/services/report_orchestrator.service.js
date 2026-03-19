@@ -81,8 +81,11 @@ class ReportOrchestrator {
             }
             assigneeMap[assigneeName].totalTasks++;
 
-            // Đếm Overdue
-            if (fields.duedate) {
+            // Đếm Overdue (chỉ tính ticket chưa Done — ticket đã Done không cần báo overdue)
+            const doneStatuses = ['done', 'resolved', 'closed'];
+            const isDone = doneStatuses.includes(status.toLowerCase());
+
+            if (fields.duedate && !isDone) {
                 const dueDate = new Date(fields.duedate);
                 dueDate.setHours(0, 0, 0, 0);
                 if (today > dueDate) {
@@ -99,9 +102,8 @@ class ReportOrchestrator {
                 blockedList.push(`${issue.key} (${assigneeName})`);
             }
 
-            // Đếm Done
-            const doneStatuses = ['done', 'resolved', 'closed'];
-            if (doneStatuses.includes(status.toLowerCase())) {
+            // Đếm Done (dùng isDone đã tính ở trên)
+            if (isDone) {
                 doneTasks++;
             }
 
