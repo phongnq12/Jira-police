@@ -32,7 +32,7 @@ class ExcelService {
             { header: 'Due Date', key: 'dueDate', width: 14 },
             { header: 'Estimate (h)', key: 'estimateHours', width: 14 },
             { header: 'Spent (h)', key: 'spentHours', width: 14 },
-            { header: 'Aging (h)', key: 'agingHours', width: 12 },
+
             { header: 'Re-open', key: 'reopenCount', width: 10 },
             { header: 'Done Date', key: 'doneDate', width: 20 }
         ];
@@ -41,9 +41,6 @@ class ExcelService {
 
         if (reportData.bottleneck?.issueAnalysis) {
             for (const item of reportData.bottleneck.issueAnalysis) {
-                // Tổng aging (tổng giờ ngâm ở tất cả trạng thái)
-                const totalAging = Object.values(item.statusAging).reduce((sum, h) => sum + h, 0);
-
                 const row = taskSheet.addRow({
                     key: item.key,
                     parentKey: item.parentKey || '-',
@@ -53,19 +50,11 @@ class ExcelService {
                     dueDate: item.dueDate ? new Date(item.dueDate).toLocaleDateString('vi-VN') : '-',
                     estimateHours: parseFloat(((item.originalEstimate || 0) / 3600).toFixed(1)),
                     spentHours: parseFloat(((item.timeSpent || 0) / 3600).toFixed(1)),
-                    agingHours: parseFloat(totalAging.toFixed(1)),
                     reopenCount: item.reopenCount,
                     doneDate: item.doneDate ? new Date(item.doneDate).toLocaleString('vi-VN') : '-'
                 });
 
-                // Highlight aging > 24h (3 ngày làm việc)
-                if (totalAging > 24) {
-                    row.getCell('agingHours').fill = {
-                        type: 'pattern', pattern: 'solid',
-                        fgColor: { argb: 'FFFFEBEE' }
-                    };
-                    row.getCell('agingHours').font = { color: { argb: 'FFD32F2F' }, bold: true };
-                }
+
 
                 // Highlight re-open > 0
                 if (item.reopenCount > 0) {
@@ -78,7 +67,7 @@ class ExcelService {
             }
         }
 
-        taskSheet.autoFilter = 'A1:K1';
+        taskSheet.autoFilter = 'A1:J1';
         this._addBorders(taskSheet);
 
         // ====================================
