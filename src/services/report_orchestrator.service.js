@@ -22,7 +22,7 @@ class ReportOrchestrator {
         const jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task) AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
 
         const data = await jiraService.searchIssues(jql, [
-            'summary', 'status', 'assignee', 'duedate',
+            'summary', 'status', 'assignee', 'duedate', 'resolutiondate',
             'timeoriginalestimate', 'timespent', 'issuetype', 'sprint'
         ]);
 
@@ -81,14 +81,32 @@ class ReportOrchestrator {
             }
             assigneeMap[assigneeName].totalTasks++;
 
-            // Đếm Overdue (chỉ tính ticket chưa Done — ticket đã Done không cần báo overdue)
+            // Đếm Overdue:
+            // ✅ Done đúng/trước hạn → Không overdue
+            // ⚠️ Done SAU hạn → Vẫn overdue
+            // 🔥 Chưa Done + quá hạn → Overdue
             const doneStatuses = ['done', 'resolved', 'closed'];
             const isDone = doneStatuses.includes(status.toLowerCase());
 
-            if (fields.duedate && !isDone) {
+            if (fields.duedate) {
                 const dueDate = new Date(fields.duedate);
                 dueDate.setHours(0, 0, 0, 0);
-                if (today > dueDate) {
+
+                let isOverdue = false;
+
+                if (!isDone && today > dueDate) {
+                    // Chưa Done + quá hạn
+                    isOverdue = true;
+                } else if (isDone && fields.resolutiondate) {
+                    // Done nhưng kiểm tra ngày resolve có sau due date không
+                    const resolvedDate = new Date(fields.resolutiondate);
+                    resolvedDate.setHours(0, 0, 0, 0);
+                    if (resolvedDate > dueDate) {
+                        isOverdue = true;
+                    }
+                }
+
+                if (isOverdue) {
                     overdueTasks++;
                     assigneeMap[assigneeName].overdueTasks++;
                     assigneeMap[assigneeName].overdueTickets.push(issue.key);
