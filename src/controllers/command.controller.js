@@ -86,8 +86,9 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
     try {
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
-        // JQL lấy task. (Không cho "User Story" vào JQL vì nếu Jira project đó không dùng loại thẻ này thì JQL sẽ lỗi 400 Bad Request)
-        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task) AND resolution = Unresolved`;
+        // JQL lấy TẤT CẢ task trong Sprint (bao gồm Done) để tính đúng tổng effort ban đầu
+        // Cancelled sẽ được lọc bằng JS phía dưới
+        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task)`;
         if (sprintId && !isNaN(sprintId)) {
             jql += ` AND sprint = ${sprintId}`;
         } else {
