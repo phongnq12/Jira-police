@@ -194,11 +194,10 @@ class ReportOrchestrator {
      * Tạo ảnh Radar Chart từ metrics
      * @returns {Buffer} PNG image buffer
      */
-    generateRadarChart(metricsData) {
+    async generateRadarChart(metricsData) {
         const m = metricsData.metrics;
         const total = m.totalTasks || 1;
 
-        // Chuyển đổi sang thang % (0-100)
         const radarData = {
             overdue: Math.min(100, Math.round((m.overdueTasks / total) * 100)),
             blocked: Math.min(100, Math.round((m.blockedTasks / total) * 100)),
@@ -206,15 +205,15 @@ class ReportOrchestrator {
             unloggedWork: Math.min(100, Math.round((m.unloggedWorkCount / total) * 100))
         };
 
-        return chartService.renderRadarChart(radarData, metricsData.sprintName || metricsData.projectKey);
+        return await chartService.renderRadarChart(radarData, metricsData.sprintName || metricsData.projectKey);
     }
 
     /**
      * Tạo ảnh Efficiency Bar Chart
      * @returns {Buffer} PNG image buffer
      */
-    generateEfficiencyChart(metricsData) {
-        return chartService.renderEfficiencyBarChart(
+    async generateEfficiencyChart(metricsData) {
+        return await chartService.renderEfficiencyBarChart(
             metricsData.assigneeEfficiency,
             `${metricsData.sprintName || metricsData.projectKey} — Efficiency`
         );

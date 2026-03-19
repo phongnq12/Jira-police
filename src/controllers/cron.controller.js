@@ -281,7 +281,7 @@ async function runReportingJob(specificChatId = null) {
 
             // 2. Render Radar Chart (Sức khỏe dự án) + Chi tiết ticket
             try {
-                const radarBuffer = reportOrchestrator.generateRadarChart(metricsData);
+                const radarBuffer = await reportOrchestrator.generateRadarChart(metricsData);
                 const m = metricsData.metrics;
                 const dl = metricsData.detailLists;
 
@@ -333,7 +333,7 @@ async function runReportingJob(specificChatId = null) {
             // 3. Render Efficiency Bar Chart 
             try {
                 if (metricsData.assigneeEfficiency.length > 0) {
-                    const barBuffer = reportOrchestrator.generateEfficiencyChart(metricsData);
+                    const barBuffer = await reportOrchestrator.generateEfficiencyChart(metricsData);
                     await telegramService.sendPhoto(barBuffer, `📊 <b>Hiệu suất theo Nhân sự</b> — ${metricsData.sprintName || projectInfo.jiraProjectKey}`, projectInfo.chatId);
                     await sleep(1500);
                 }
