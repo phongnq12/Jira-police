@@ -2,80 +2,58 @@ const jiraService = require('./jira.service');
 
 /**
  * Bottleneck Analysis Service
- * Phân tích changelog của Issue để tính:
- * 1. Status Aging: Thời gian mỗi task ngâm ở từng trạng thái (tính theo 8h/ngày)
- * 2. Re-open Rate: Số lần task quay ngược từ Testing/Review → Reopen
- * 3. Done Date: Thời điểm ticket được kéo sang Done
+ * Phân tích changelog để tính:
+ * 1. Status Aging (tính theo 8h/ngày)
+ * 2. Re-open Rate
+ * 3. Done Date (từ changelog)
+ *
+ * Tối ưu: Dùng expand=changelog trong search để lấy changelog cùng lúc,
+ * không cần gọi N API calls riêng lẻ.
  */
 class BottleneckService {
     /**
-     * Lấy changelog của 1 Issue từ Jira API
-     */
-    async getIssueChangelog(issueKey) {
-        try {
-            const response = await jiraService._axiosInstance.get(`/issue/${issueKey}`, {
-                params: {
-                    expand: 'changelog',
-                    fields: 'status,summary,assignee'
-                }
-            });
-            return response.data.changelog?.histories || [];
-        } catch (error) {
-            console.error(`[Bottleneck] ❌ Không thể lấy changelog cho ${issueKey}:`, error.message);
-            return [];
-        }
-    }
-
-    /**
-     * Chuyển đổi milliseconds → giờ làm việc (8h/ngày)
-     * VD: 24h thực tế = 1 ngày = 8h làm việc
+     * Chuyển ms → giờ làm việc (8h/ngày)
      */
     _msToWorkingHours(ms) {
         const totalHours = ms / (1000 * 60 * 60);
         const days = Math.floor(totalHours / 24);
         const remainingHours = totalHours % 24;
-        // Mỗi ngày = 8h, giờ lẻ giữ nguyên (coi như trong ngày)
         const workingHours = (days * 8) + Math.min(remainingHours, 8);
         return parseFloat(workingHours.toFixed(1));
     }
 
     /**
-     * Phân tích Status Aging + Done Date cho 1 Issue
+     * Phân tích changelog (inline) của 1 issue
+     * @param {Array} histories Changelog histories (đã có sẵn từ expand=changelog)
      */
-    async analyzeIssue(issueKey) {
-        const histories = await this.getIssueChangelog(issueKey);
-
+    analyzeChangelog(histories = []) {
         const statusAging = {};
         let reopenCount = 0;
         let lastStatusChange = null;
         let doneDate = null;
 
-        const sortedHistories = histories.sort((a, b) => new Date(a.created) - new Date(b.created));
+        const sorted = histories.sort((a, b) => new Date(a.created) - new Date(b.created));
 
-        for (const history of sortedHistories) {
+        for (const history of sorted) {
             for (const item of history.items) {
                 if (item.field === 'status') {
                     const toStatus = item.toString || 'Unknown';
                     const changeTime = new Date(history.created);
 
-                    // Tính thời gian ngâm ở trạng thái trước
                     if (lastStatusChange) {
                         const durationMs = changeTime - lastStatusChange.time;
                         const workingHours = this._msToWorkingHours(durationMs);
-
-                        if (!statusAging[lastStatusChange.status]) {
-                            statusAging[lastStatusChange.status] = 0;
-                        }
+                        if (!statusAging[lastStatusChange.status]) statusAging[lastStatusChange.status] = 0;
                         statusAging[lastStatusChange.status] += workingHours;
                     }
 
-                    // Kiểm tra Re-open
+                    // Re-open check
                     const reopenKeywords = ['reopen', 're-open', 'reopened'];
                     if (reopenKeywords.some(kw => toStatus.toLowerCase().includes(kw))) {
                         reopenCount++;
                     }
 
-                    // Kiểm tra Done Date
+                    // Done date check
                     const doneKeywords = ['done', 'resolved', 'closed'];
                     if (doneKeywords.some(kw => toStatus.toLowerCase().includes(kw))) {
                         doneDate = changeTime;
@@ -86,19 +64,15 @@ class BottleneckService {
             }
         }
 
-        // Tính thời gian ở trạng thái cuối cùng (từ lần đổi cuối đến hiện tại)
+        // Tính thời gian ở trạng thái cuối
         if (lastStatusChange) {
             const now = new Date();
             const durationMs = now - lastStatusChange.time;
             const workingHours = this._msToWorkingHours(durationMs);
-
-            if (!statusAging[lastStatusChange.status]) {
-                statusAging[lastStatusChange.status] = 0;
-            }
+            if (!statusAging[lastStatusChange.status]) statusAging[lastStatusChange.status] = 0;
             statusAging[lastStatusChange.status] += workingHours;
         }
 
-        // Làm tròn
         for (const key of Object.keys(statusAging)) {
             statusAging[key] = parseFloat(statusAging[key].toFixed(1));
         }
@@ -107,29 +81,24 @@ class BottleneckService {
     }
 
     /**
-     * Phân tích hàng loạt Issues (Batch)
+     * Phân tích hàng loạt Issues — dùng inline changelog (không gọi API riêng)
+     * Issues PHẢI có changelog.histories (từ expand=changelog trong search)
      */
     async analyzeIssues(issues) {
         const results = [];
         const aggregatedAging = {};
         let totalReopens = 0;
 
-        for (let i = 0; i < issues.length; i++) {
-            const issue = issues[i];
-            const key = issue.key;
+        for (const issue of issues) {
             const status = issue.fields.status?.name || 'Unknown';
+            if (status.toLowerCase() === 'cancelled') continue;
 
-            if (status.toLowerCase() === 'cancelled') {
-                console.log(`[Bottleneck] ⏭ Bỏ qua ${key} (Cancelled)`);
-                continue;
-            }
-
-            console.log(`[Bottleneck] Đang phân tích ${i + 1}/${issues.length}: ${key}`);
-
-            const analysis = await this.analyzeIssue(key);
+            // Lấy changelog trực tiếp từ issue (đã có nhờ expand=changelog)
+            const histories = issue.changelog?.histories || [];
+            const analysis = this.analyzeChangelog(histories);
 
             results.push({
-                key,
+                key: issue.key,
                 parentKey: issue.fields.parent?.key || '-',
                 parentSummary: issue.fields.parent?.fields?.summary || '-',
                 summary: issue.fields.summary,
@@ -142,18 +111,12 @@ class BottleneckService {
                 ...analysis
             });
 
-            // Gom status aging tổng hợp
             for (const [s, hours] of Object.entries(analysis.statusAging)) {
                 if (!aggregatedAging[s]) aggregatedAging[s] = { totalHours: 0, count: 0 };
                 aggregatedAging[s].totalHours += hours;
                 aggregatedAging[s].count++;
             }
             totalReopens += analysis.reopenCount;
-
-            // Sleep 500ms giữa các request
-            if (i < issues.length - 1) {
-                await new Promise(r => setTimeout(r, 500));
-            }
         }
 
         // Tính trung bình aging

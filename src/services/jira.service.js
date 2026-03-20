@@ -53,19 +53,20 @@ class JiraService {
      * @param {number} maxResults Số kết quả tối đa mỗi trang
      * @returns {object} Dữ liệu response từ Jira
      */
-    async _fetchPage(jql, fields, startAt = 0, maxResults = 50) {
+    async _fetchPage(jql, fields, startAt = 0, maxResults = 50, expand = '') {
         let lastError;
 
         for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
             try {
-                const response = await this._axiosInstance.get('/search', {
-                    params: {
-                        jql,
-                        startAt,
-                        maxResults,
-                        fields: fields.join(',')
-                    }
-                });
+                const params = {
+                    jql,
+                    startAt,
+                    maxResults,
+                    fields: fields.join(',')
+                };
+                if (expand) params.expand = expand;
+
+                const response = await this._axiosInstance.get('/search', { params });
                 return response.data;
             } catch (error) {
                 lastError = error;
@@ -89,16 +90,16 @@ class JiraService {
      * Quét Issues theo chuỗi JQL tuỳ ý — TỰ ĐỘNG PHÂN TRANG
      * Lặp lại cho đến khi lấy hết toàn bộ issues, không giới hạn 50 nữa.
      */
-    async searchIssues(jql, fields = ['summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent']) {
+    async searchIssues(jql, fields = ['summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent'], expand = '') {
         const pageSize = 50;
         let startAt = 0;
         let allIssues = [];
         let total = 0;
 
-        console.log(`[JiraService] Bắt đầu quét: JQL = "${jql}"`);
+        console.log(`[JiraService] Bắt đầu quét: JQL = "${jql}"${expand ? ` (expand: ${expand})` : ''}`);
 
         do {
-            const data = await this._fetchPage(jql, fields, startAt, pageSize);
+            const data = await this._fetchPage(jql, fields, startAt, pageSize, expand);
             total = data.total || 0;
 
             if (data.issues && data.issues.length > 0) {
@@ -110,8 +111,6 @@ class JiraService {
         } while (startAt < total);
 
         console.log(`[JiraService] Hoàn tất: Tổng cộng ${allIssues.length} issues.`);
-
-        // Trả về cùng cấu trúc { total, issues } để không phá vỡ code hiện tại
         return { total, issues: allIssues };
     }
 }

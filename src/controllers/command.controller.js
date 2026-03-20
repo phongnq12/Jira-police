@@ -1,4 +1,5 @@
 const storageService = require('../services/storage.service');
+const { sanitizeJqlString, sanitizeSprintId } = require('../utils/sanitize');
 const jiraService = require('../services/jira.service');
 const config = require('../config/env');
 const projectConfig = require('../config/projects');
@@ -78,18 +79,16 @@ function initCommands(bot) {
 async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
     // Bóc tách tham số (Ví dụ: /check_effort 142)
     const parts = text.split(' ');
-    const sprintId = parts[1]; // Lấy tham số phía sau
+    const sprintId = sanitizeSprintId(parts[1]);
 
-    // Gửi tin nhắn "Đang xử lý..." để tạo UX tốt
     const loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang trích xuất dữ liệu từ Jira cho anh. Đợi em xíu nha~ ✨');
 
     try {
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // JQL lấy TẤT CẢ task trong Sprint (bao gồm Done) để tính đúng tổng effort ban đầu
-        // Cancelled sẽ được lọc bằng JS phía dưới
         let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task)`;
-        if (sprintId && !isNaN(sprintId)) {
+        if (sprintId) {
             jql += ` AND sprint = ${sprintId}`;
         } else {
             // Mặc định lấy Sprint đang mở tĩnh của dự án
@@ -198,26 +197,24 @@ async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) 
         let sprintId = null;
         let assigneeFilter = null;
 
-        if (param1 && !isNaN(param1)) {
-            // param1 là sprint_id
-            sprintId = param1;
+        const validSprintId = sanitizeSprintId(param1);
+        if (validSprintId) {
+            sprintId = validSprintId;
             jql += ` AND sprint = ${sprintId}`;
-            // param2 có thể là assignee
             if (param2) assigneeFilter = param2;
         } else if (param1) {
-            // param1 là tên assignee (không có sprint_id)
             assigneeFilter = parts.slice(1).join(' ');
             jql += ` AND sprint IN openSprints()`;
         } else {
-            // Không có param -> Sprint đang mở
             jql += ` AND sprint IN openSprints()`;
         }
 
-        // Nếu có filter theo assignee, thêm vào JQL
+        // Sanitize assignee input trước khi gom vào JQL
         if (assigneeFilter) {
-            // Xử lý thông minh: Nếu user gõ cả dấu [ ] theo placeholder thì xóa đi
-            assigneeFilter = assigneeFilter.replace(/^\[|\]$/g, '').trim();
-            jql += ` AND assignee = "${assigneeFilter}"`;
+            assigneeFilter = sanitizeJqlString(assigneeFilter.replace(/^\[|\]$/g, ''));
+            if (assigneeFilter) {
+                jql += ` AND assignee = "${assigneeFilter}"`;
+            }
         }
 
         const data = await jiraService.searchIssues(jql, [

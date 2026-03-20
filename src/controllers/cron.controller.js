@@ -42,8 +42,8 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
             console.log(`[Cronjob] Đang quét dự án: [${projectInfo.jiraProjectKey}] đẩy về Group: [${projectInfo.chatId}]`);
             console.log(`======================================================\n`);
             
-            // Xử lý logic như cũ, nhưng thay vì PROJECT_KEY tĩnh, dùng projectInfo.jiraProjectKey. Thêm NOT IN (Epic, Story, Task) để bỏ qua vé cha.
-            let jql = `project = "${projectInfo.jiraProjectKey}" AND issuetype NOT IN (Epic, Story, Task) AND resolution = Unresolved`;
+            // Lấy TẤT CẢ task (bao gồm Done) — Cancelled/Done được lọc bằng JS phía dưới
+            let jql = `project = "${projectInfo.jiraProjectKey}" AND issuetype NOT IN (Epic, Story, Task)`;
             if (!isScanAll) {
                 // Chỉ lấy Sprint đang Open và KHÔNG lấy các Sprint tương lai (Future Sprints)
                 jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;

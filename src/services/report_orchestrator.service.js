@@ -24,7 +24,7 @@ class ReportOrchestrator {
         const data = await jiraService.searchIssues(jql, [
             'summary', 'status', 'assignee', 'duedate', 'resolutiondate',
             'timeoriginalestimate', 'timespent', 'issuetype', 'sprint', 'parent'
-        ]);
+        ], 'changelog');
 
         if (!data.issues || data.issues.length === 0) {
             return null;
