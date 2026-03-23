@@ -233,22 +233,13 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
         for (const [userId, activity] of Object.entries(userActivityTracker)) {
             const totalPassive = activity.passiveSubTaskKeys.length + activity.passiveStandaloneKeys.length;
             if (activity.activeCount === 0 && totalPassive > 0) {
-                // Cảnh báo per-ticket cho standalone tasks
-                for (const standaloneKey of activity.passiveStandaloneKeys) {
-                    noActiveTaskCount++;
-                    console.log(`[Cronjob] Standalone ticket ${standaloneKey} (${activity.displayName}) chưa In Progress. Nhắc nhở...`);
-                    const msg = messageService.noActiveTaskAlert(activity.displayName, [standaloneKey]);
-                    await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, msg, 'warning', projectInfo.chatId);
-                    await sleep(1000);
-                }
-                // Cảnh báo per-member cho sub-tasks (gom tất cả sub-task keys vào 1 tin nhắn)
-                if (activity.passiveSubTaskKeys.length > 0) {
-                    noActiveTaskCount++;
-                    console.log(`[Cronjob] Member ${activity.displayName} không có sub-task nào In Progress. Nhắc nhở...`);
-                    const msg = messageService.noActiveTaskAlert(activity.displayName, activity.passiveSubTaskKeys);
-                    await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, msg, 'warning', projectInfo.chatId);
-                    await sleep(1000);
-                }
+                noActiveTaskCount++;
+                // Gộp tất cả ticket (standalone + sub-task) vào 1 tin nhắn duy nhất
+                const allPassiveKeys = [...activity.passiveStandaloneKeys, ...activity.passiveSubTaskKeys];
+                console.log(`[Cronjob] Member ${activity.displayName} không có task nào In Progress. Tickets: ${allPassiveKeys.join(', ')}`);
+                const msg = messageService.noActiveTaskAlert(activity.displayName, allPassiveKeys);
+                await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, msg, 'warning', projectInfo.chatId);
+                await sleep(1000);
             }
         }
 
