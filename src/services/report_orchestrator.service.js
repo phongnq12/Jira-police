@@ -168,10 +168,18 @@ class ReportOrchestrator {
             reopens: a.reopens
         }));
 
-        // Đếm lại totalTasks sau khi loại bỏ cancelled
+        // Đếm lại totalTasks: loại bỏ cancelled VÀ parent tickets có sub-tasks
         const activeTasks = issues.filter(i => {
             const s = i.fields.status?.name || '';
-            return s.toLowerCase() !== 'cancelled';
+            if (s.toLowerCase() === 'cancelled') return false;
+
+            // Loại bỏ Epic và Story/Task có sub-tasks (chỉ giữ sub-tasks + standalone)
+            const typeName = i.fields.issuetype?.name?.toLowerCase() || '';
+            const hasSubs = i.fields.subtasks && i.fields.subtasks.length > 0;
+            if (typeName === 'epic') return false;
+            if (['story', 'user story', 'task'].includes(typeName) && hasSubs) return false;
+
+            return true;
         });
 
         return {
