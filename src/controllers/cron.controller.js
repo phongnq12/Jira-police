@@ -156,7 +156,8 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
             }
 
             // [Kịch bản 5]: Kiểm tra xem số giờ Log Work có vượt mức Estimate gốc ban đầu chưa
-            if (fields.timeoriginalestimate && fields.timespent) {
+            // Bỏ qua các task đã đóng (Done/Closed/Cancelled/Resolved) để tránh spam khi /scan_all
+            if (fields.timeoriginalestimate && fields.timespent && !isIgnored) {
                 if (fields.timespent > fields.timeoriginalestimate) { // Cùng đơn vị là Seconds (Giây)
                     overEstimateCount++;
                     // Quy đổi giây sang giờ cho PM dễ đọc (VD: 3600s -> 1h)
