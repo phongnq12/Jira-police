@@ -91,6 +91,9 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
         let trackingWorklogCount = 0;
         let noActiveTaskCount = 0;
 
+        // KB9 Mode B: Bộ theo dõi sub-task activity per-member
+        const userActivityTracker = {};
+
 
         for (const issue of data.issues) {
             const key = issue.key;
@@ -191,16 +194,49 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                 }
             }
 
-            // --- KIỂM TRA KB9: STANDALONE TASK CHƯA BẮT ĐẦU (PER-TICKET) --- //
-            // Cảnh báo từng ticket standalone (có estimate + status Open/To Do) bất kể dev có task active khác
+            // --- KIỂM TRA KB9: CHƯA BẮT ĐẦU CÔNG VIỆC --- //
             const hasEstimate = fields.timeoriginalestimate && fields.timeoriginalestimate > 0;
             const passiveStatuses = ['to do', 'open', 'reopen'];
             const isPassive = passiveStatuses.includes(status.toLowerCase());
 
-            if (assigneeName && !isIgnored && !isExemptParent && isPassive && hasEstimate) {
+            // Phân loại: standalone task vs sub-task
+            const isStandaloneTask = ['story', 'user story', 'task'].includes(issueTypeName.toLowerCase()) && !hasSubtasks;
+
+            // MODE A: Standalone Task (per-ticket) — có estimate + đang Open/To Do → cảnh báo ngay
+            if (isStandaloneTask && assigneeName && !isIgnored && isPassive && hasEstimate) {
                 noActiveTaskCount++;
-                console.log(`[Cronjob] Standalone ticket ${key} (${assigneeName}) đang ở trạng thái ${status} nhưng đã có estimate. Nhắc nhở...`);
+                console.log(`[Cronjob] Standalone ticket ${key} (${assigneeName}) đang ở ${status} nhưng đã có estimate. Nhắc nhở...`);
                 const noActiveMsg = messageService.noActiveTaskAlert(assigneeName, [key]);
+                await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, noActiveMsg, 'warning', projectInfo.chatId);
+                await sleep(1000);
+            }
+
+            // MODE B: Sub-task (per-member) — gom theo assignee, sau vòng lặp kiểm tra tổng thể
+            if (!isStandaloneTask && !isExemptParent && assigneeName && !isIgnored) {
+                if (!userActivityTracker[assigneeName]) {
+                    userActivityTracker[assigneeName] = {
+                        displayName: assigneeName,
+                        activeCount: 0,
+                        passiveCount: 0,
+                        passiveKeys: []
+                    };
+                }
+
+                if (isPassive) {
+                    userActivityTracker[assigneeName].passiveCount++;
+                    userActivityTracker[assigneeName].passiveKeys.push(key);
+                } else {
+                    userActivityTracker[assigneeName].activeCount++;
+                }
+            }
+        }
+
+        // MODE B (tiếp): Sau vòng lặp, kiểm tra member nào toàn sub-task passive mà không có In Progress
+        for (const [userId, activity] of Object.entries(userActivityTracker)) {
+            if (activity.activeCount === 0 && activity.passiveCount > 0) {
+                noActiveTaskCount++;
+                console.log(`[Cronjob] Member ${activity.displayName} không có sub-task nào In Progress. Nhắc nhở...`);
+                const noActiveMsg = messageService.noActiveTaskAlert(activity.displayName, activity.passiveKeys);
                 await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, noActiveMsg, 'warning', projectInfo.chatId);
                 await sleep(1000);
             }
