@@ -42,12 +42,9 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
             console.log(`[Cronjob] Đang quét dự án: [${projectInfo.jiraProjectKey}] đẩy về Group: [${projectInfo.chatId}]`);
             console.log(`======================================================\n`);
             
-            // Lấy TẤT CẢ task (bao gồm Done) — Cancelled/Done được lọc bằng JS phía dưới
-            let jql = `project = "${projectInfo.jiraProjectKey}" AND issuetype != Epic`;
-            if (!isScanAll) {
-                // Chỉ lấy Sprint đang Open và KHÔNG lấy các Sprint tương lai (Future Sprints)
-                jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
-            }
+            // Lấy TẤT CẢ task trong Active Sprint (bao gồm Done) — Cancelled/Done được lọc bằng JS phía dưới
+            // /scan_all cũng chỉ quét Active Sprint, khác Daily Cron ở chỗ chạy thủ công theo yêu cầu
+            let jql = `project = "${projectInfo.jiraProjectKey}" AND issuetype != Epic AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
 
         // Yêu cầu Jira API trả về các trường cần thiết để phân tích (bao gồm sprint để kiểm tra mute)
         const data = await jiraService.searchIssues(jql, [
