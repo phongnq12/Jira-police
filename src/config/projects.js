@@ -8,16 +8,27 @@ const env = require('./env');
 const projectRoutingMap = {
     // Để giữ nguyên tính chất đang chạy ổn định: 
     // Chúng ta lấy ID Group hiện tại (-5185115610) trỏ vào Project Key Cũ (X25RDDIGILEND)
+    // Dự án Từ điển dữ liệu - Test
     "-5185115610": {
         jiraProjectKey: "V.25.G.RD.C12.43.S",
         projectName: "Từ điển dữ liệu"
     },
 
     // Khi anh có dự án 2, anh chỉ cần lấy ID Group 2 dán vào đây, rồi điền Jira Key D.A 2
-    // Ví dụ mẫu:
+    // Dự án Từ điển dữ liệu - Live
     "-5055590570": {
         jiraProjectKey: "V.25.G.RD.C12.43.S",
         projectName: "Từ điển dữ liệu"
+    },
+    // Dự án Xếp hạng CSDL - Live
+    "-4991716861": {
+        jiraProjectKey: "V.25.G.RD.C12.43.2.S",
+        projectName: "Xếp hạng CSDL"
+    },
+    // Dự án Xếp hạng CSDL - Test
+    "-5039880714": {
+        jiraProjectKey: "V.25.G.RD.C12.43.2.S",
+        projectName: "Xếp hạng CSDL"
     }
 };
 
