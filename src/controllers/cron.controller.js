@@ -194,51 +194,57 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                 }
             }
 
-            // --- KIỂM TRA KB9: CHƯA BẮT ĐẦU CÔNG VIỆC --- //
+            // --- KIỂM TRA KB9: CHƯA BẮT ĐẦU CÔNG VIỆC (GOM THEO MEMBER) --- //
+            // Gom TOÀN BỘ activity (sub-task + standalone) theo member.
+            // Nếu member có BẤT KỲ task nào In Progress → skip KB9 hoàn toàn.
             const hasEstimate = fields.timeoriginalestimate && fields.timeoriginalestimate > 0;
             const passiveStatuses = ['to do', 'open', 'reopen'];
             const isPassive = passiveStatuses.includes(status.toLowerCase());
-
-            // Phân loại: standalone task vs sub-task
             const isStandaloneTask = ['story', 'user story', 'task'].includes(issueTypeName.toLowerCase()) && !hasSubtasks;
 
-            // MODE A: Standalone Task (per-ticket) — có estimate + đang Open/To Do → cảnh báo ngay
-            if (isStandaloneTask && assigneeName && !isIgnored && isPassive && hasEstimate) {
-                noActiveTaskCount++;
-                console.log(`[Cronjob] Standalone ticket ${key} (${assigneeName}) đang ở ${status} nhưng đã có estimate. Nhắc nhở...`);
-                const noActiveMsg = messageService.noActiveTaskAlert(assigneeName, [key]);
-                await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, noActiveMsg, 'warning', projectInfo.chatId);
-                await sleep(1000);
-            }
-
-            // MODE B: Sub-task (per-member) — gom theo assignee, sau vòng lặp kiểm tra tổng thể
-            if (!isStandaloneTask && !isExemptParent && assigneeName && !isIgnored) {
+            if (assigneeName && !isIgnored && !isExemptParent) {
                 if (!userActivityTracker[assigneeName]) {
                     userActivityTracker[assigneeName] = {
                         displayName: assigneeName,
-                        activeCount: 0,
-                        passiveCount: 0,
-                        passiveKeys: []
+                        activeCount: 0,           // Đếm task đang In Progress/Done
+                        passiveSubTaskKeys: [],    // Sub-task đang passive (To Do/Open)
+                        passiveStandaloneKeys: []  // Standalone task đang passive + có estimate
                     };
                 }
 
                 if (isPassive) {
-                    userActivityTracker[assigneeName].passiveCount++;
-                    userActivityTracker[assigneeName].passiveKeys.push(key);
+                    if (isStandaloneTask && hasEstimate) {
+                        userActivityTracker[assigneeName].passiveStandaloneKeys.push(key);
+                    } else if (!isStandaloneTask) {
+                        userActivityTracker[assigneeName].passiveSubTaskKeys.push(key);
+                    }
                 } else {
+                    // In Progress, Done, Review, etc. → member đang có việc chạy
                     userActivityTracker[assigneeName].activeCount++;
                 }
             }
         }
 
-        // MODE B (tiếp): Sau vòng lặp, kiểm tra member nào toàn sub-task passive mà không có In Progress
+        // Sau vòng lặp: Kiểm tra từng member — chỉ cảnh báo nếu KHÔNG CÓ task nào In Progress
         for (const [userId, activity] of Object.entries(userActivityTracker)) {
-            if (activity.activeCount === 0 && activity.passiveCount > 0) {
-                noActiveTaskCount++;
-                console.log(`[Cronjob] Member ${activity.displayName} không có sub-task nào In Progress. Nhắc nhở...`);
-                const noActiveMsg = messageService.noActiveTaskAlert(activity.displayName, activity.passiveKeys);
-                await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, noActiveMsg, 'warning', projectInfo.chatId);
-                await sleep(1000);
+            const totalPassive = activity.passiveSubTaskKeys.length + activity.passiveStandaloneKeys.length;
+            if (activity.activeCount === 0 && totalPassive > 0) {
+                // Cảnh báo per-ticket cho standalone tasks
+                for (const standaloneKey of activity.passiveStandaloneKeys) {
+                    noActiveTaskCount++;
+                    console.log(`[Cronjob] Standalone ticket ${standaloneKey} (${activity.displayName}) chưa In Progress. Nhắc nhở...`);
+                    const msg = messageService.noActiveTaskAlert(activity.displayName, [standaloneKey]);
+                    await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, msg, 'warning', projectInfo.chatId);
+                    await sleep(1000);
+                }
+                // Cảnh báo per-member cho sub-tasks (gom tất cả sub-task keys vào 1 tin nhắn)
+                if (activity.passiveSubTaskKeys.length > 0) {
+                    noActiveTaskCount++;
+                    console.log(`[Cronjob] Member ${activity.displayName} không có sub-task nào In Progress. Nhắc nhở...`);
+                    const msg = messageService.noActiveTaskAlert(activity.displayName, activity.passiveSubTaskKeys);
+                    await notificationService.dispatchAlert(`[Jira Master] 🚀 CHƯA BẮT ĐẦU CÔNG VIỆC`, msg, 'warning', projectInfo.chatId);
+                    await sleep(1000);
+                }
             }
         }
 
