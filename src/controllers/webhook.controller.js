@@ -84,9 +84,11 @@ async function handleJiraWebhook(req, res) {
                         const timeSpent = issue.fields.timespent || 0;
                         
                         // Danh sách vé cha được miễn trừ bắt buộc Log Work khi kéo Done
+                        // Epic luôn miễn trừ. Story/Task chỉ miễn trừ khi CÓ sub-task bên trong.
                         const issueTypeName = issue.fields.issuetype ? issue.fields.issuetype.name.toLowerCase() : '';
-                        const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
-                        const isExempt = exemptParentTypes.includes(issueTypeName);
+                        const hasSubtasks = issue.fields.subtasks && issue.fields.subtasks.length > 0;
+                        const isExempt = issueTypeName === 'epic' || 
+                            (['story', 'user story', 'task'].includes(issueTypeName) && hasSubtasks);
 
                         if (timeSpent === 0 && !isExempt) {
                             const alertMsg = messageService.missingWorkLogAlert(issueKey, issueSummary, assigneeName, toString);

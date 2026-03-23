@@ -18,12 +18,12 @@ class ReportOrchestrator {
      */
     async collectMetrics(projectKey) {
         // JQL: Lấy TẤT CẢ task trong Active Sprint (bao gồm Done) để tính đúng effort
-        // Cancelled sẽ được lọc bằng JS phía dưới
-        const jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task) AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
+        // Chỉ loại bỏ Epic. Story/Task sẽ được kiểm tra subtasks bằng JS phía dưới.
+        const jql = `project = "${projectKey}" AND issuetype != Epic AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
 
         const data = await jiraService.searchIssues(jql, [
             'summary', 'status', 'assignee', 'duedate', 'resolutiondate',
-            'timeoriginalestimate', 'timespent', 'issuetype', 'sprint', 'parent'
+            'timeoriginalestimate', 'timespent', 'issuetype', 'sprint', 'parent', 'subtasks'
         ], 'changelog');
 
         if (!data.issues || data.issues.length === 0) {
@@ -66,6 +66,14 @@ class ReportOrchestrator {
 
             // Bỏ qua ticket Cancelled
             if (status.toLowerCase() === 'cancelled') continue;
+
+            // Bỏ qua ticket cha có sub-tasks bên trong (Story/Task có con)
+            // Story/Task KHÔNG có sub-task → coi như standalone ticket và tính bình thường
+            const issueTypeName = fields.issuetype?.name?.toLowerCase() || '';
+            const hasSubtasks = fields.subtasks && fields.subtasks.length > 0;
+            const isExemptParent = issueTypeName === 'epic' || 
+                (['story', 'user story', 'task'].includes(issueTypeName) && hasSubtasks);
+            if (isExemptParent) continue;
 
             // Init assignee tracker
             if (!assigneeMap[assigneeName]) {

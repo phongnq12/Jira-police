@@ -87,7 +87,7 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // JQL lấy TẤT CẢ task trong Sprint (bao gồm Done) để tính đúng tổng effort ban đầu
-        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task)`;
+        let jql = `project = "${projectKey}" AND issuetype != Epic`;
         if (sprintId) {
             jql += ` AND sprint = ${sprintId}`;
         } else {
@@ -95,8 +95,8 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
             jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
         }
 
-        // Yêu cầu Jira API trả về thông tin estimate
-        const data = await jiraService.searchIssues(jql, ['assignee', 'timeoriginalestimate', 'status', 'sprint']);
+        // Yêu cầu Jira API trả về thông tin estimate + subtasks để xác định standalone
+        const data = await jiraService.searchIssues(jql, ['assignee', 'timeoriginalestimate', 'status', 'sprint', 'issuetype', 'subtasks']);
 
         if (!data.issues || data.issues.length === 0) {
             return bot.editMessageText('😢 Em tìm hoài mà không thấy Task nào trong Sprint này hết á anh ơi~', { chat_id: chatId, message_id: loadingMsg.message_id });
@@ -113,15 +113,16 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
         let totalSprintSeconds = 0;
         let totalFilteredTaskCount = 0;
 
-        // Danh sách miễn trừ lọc thêm bằng JS (Phòng hờ User Story lọt qua JQL)
-        const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
-
+        // Lọc ticket cha có sub-tasks (Story/Task có con thì bỏ qua, standalone thì tính)
         for (const issue of data.issues) {
             const status = issue.fields.status ? issue.fields.status.name.toLowerCase() : '';
             if (status === 'cancelled') continue;
 
             const issueTypeName = issue.fields.issuetype ? issue.fields.issuetype.name.toLowerCase() : '';
-            if (exemptParentTypes.includes(issueTypeName)) continue;
+            const hasSubtasks = issue.fields.subtasks && issue.fields.subtasks.length > 0;
+            const isExemptParent = issueTypeName === 'epic' || 
+                (['story', 'user story', 'task'].includes(issueTypeName) && hasSubtasks);
+            if (isExemptParent) continue;
 
             totalFilteredTaskCount++;
 
@@ -191,7 +192,7 @@ async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) 
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // Xây dựng JQL: Lấy task chưa hoàn thành (loại Done, Closed, Cancelled). Hạn chế quăng "User Story" vào JQL để tránh lỗi 400.
-        let jql = `project = "${projectKey}" AND issuetype NOT IN (Epic, Story, Task) AND status NOT IN (Done, Closed, Cancelled)`;
+        let jql = `project = "${projectKey}" AND issuetype != Epic AND status NOT IN (Done, Closed, Cancelled)`;
 
         // Xác định sprint_id và assignee filter
         let sprintId = null;
@@ -219,7 +220,7 @@ async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) 
 
         const data = await jiraService.searchIssues(jql, [
             'summary', 'status', 'assignee', 'timeoriginalestimate', 'timespent',
-            'timeestimate', 'sprint'
+            'timeestimate', 'sprint', 'issuetype', 'subtasks'
         ]);
 
         if (!data.issues || data.issues.length === 0) {
@@ -255,11 +256,13 @@ async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) 
  */
 async function renderSummaryView(bot, chatId, loadingMsg, issues, sprintName) {
     const assigneeMap = {};
-    const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
-
+    // Lọc ticket cha có sub-tasks (giữ lại standalone)
     for (const issue of issues) {
         const issueTypeName = issue.fields.issuetype ? issue.fields.issuetype.name.toLowerCase() : '';
-        if (exemptParentTypes.includes(issueTypeName)) continue;
+        const hasSubtasks = issue.fields.subtasks && issue.fields.subtasks.length > 0;
+        const isExemptParent = issueTypeName === 'epic' || 
+            (['story', 'user story', 'task'].includes(issueTypeName) && hasSubtasks);
+        if (isExemptParent) continue;
 
         const identifier = issue.fields.assignee ? (issue.fields.assignee.emailAddress || issue.fields.assignee.displayName) : 'Unassigned';
         const displayName = issue.fields.assignee ? (issue.fields.assignee.displayName) : 'Unassigned';
@@ -317,10 +320,12 @@ async function renderDetailView(bot, chatId, loadingMsg, issues, sprintName, ass
     const baseUrl = config.JIRA.BASE_URL || 'https://your-company.atlassian.net';
 
     // Lọc bỏ ticket cha trước
-    const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
     const filteredIssues = issues.filter(issue => {
         const issueTypeName = issue.fields.issuetype ? issue.fields.issuetype.name.toLowerCase() : '';
-        return !exemptParentTypes.includes(issueTypeName);
+        const hasSubtasks = issue.fields.subtasks && issue.fields.subtasks.length > 0;
+        const isExemptParent = issueTypeName === 'epic' || 
+            (['story', 'user story', 'task'].includes(issueTypeName) && hasSubtasks);
+        return !isExemptParent;
     });
 
     let totalRemainingSeconds = 0;

@@ -43,7 +43,7 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
             console.log(`======================================================\n`);
             
             // Lấy TẤT CẢ task (bao gồm Done) — Cancelled/Done được lọc bằng JS phía dưới
-            let jql = `project = "${projectInfo.jiraProjectKey}" AND issuetype NOT IN (Epic, Story, Task)`;
+            let jql = `project = "${projectInfo.jiraProjectKey}" AND issuetype != Epic`;
             if (!isScanAll) {
                 // Chỉ lấy Sprint đang Open và KHÔNG lấy các Sprint tương lai (Future Sprints)
                 jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
@@ -51,7 +51,7 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
 
         // Yêu cầu Jira API trả về các trường cần thiết để phân tích (bao gồm sprint để kiểm tra mute)
         const data = await jiraService.searchIssues(jql, [
-            'summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent', 'issuetype', 'sprint'
+            'summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent', 'issuetype', 'sprint', 'subtasks'
         ]);
 
         if (!data.issues || data.issues.length === 0) {
@@ -113,9 +113,11 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
 
             const missingFields = [];
 
-            // Danh sách các loại ticket cha (Parent Tickets) được miễn trừ kiểm tra Planning & Log Work
-            const exemptParentTypes = ['epic', 'story', 'user story', 'task'];
-            const isExemptParent = exemptParentTypes.includes(issueTypeName.toLowerCase());
+            // Kiểm tra ticket cha: Epic luôn bỏ qua. Story/Task chỉ bỏ qua nếu CÓ sub-task bên trong.
+            // Nếu Story/Task không có sub-task → coi như standalone ticket và quét bình thường.
+            const hasSubtasks = fields.subtasks && fields.subtasks.length > 0;
+            const isExemptParent = issueTypeName.toLowerCase() === 'epic' || 
+                (['story', 'user story', 'task'].includes(issueTypeName.toLowerCase()) && hasSubtasks);
             
             // Due date: Bỏ qua kiểm tra nếu đang ở trạng thái To do/Open (áp dụng MỌI LOẠI ticket)
             // VÀ bỏ qua nếu là vé cha (Epic, Story, Task)
