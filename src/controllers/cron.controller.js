@@ -194,7 +194,9 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
             }
 
             // --- KIỂM TRA KB9: KHÔNG CÓ TASK ĐANG CHẠY (NO ACTIVE TASK) --- //
-            // Chỉ xét các member được gán task (assigneeName) và ticket không bị Cancelled. Bỏ qua các vé Cha (Epic, Story, Task)
+            // Chỉ xét: (1) có assignee, (2) không bị Cancelled, (3) không phải vé cha có sub-tasks
+            // (4) CHỈ tính standalone task đã có Original Estimate (PM đã plan xong → dev phải bắt đầu)
+            const hasEstimate = fields.timeoriginalestimate && fields.timeoriginalestimate > 0;
             if (assigneeName && status.toLowerCase() !== 'cancelled' && !isExemptParent) {
                 if (!userActivityTracker[assigneeName]) {
                     userActivityTracker[assigneeName] = {
@@ -208,10 +210,11 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                 const passiveStatuses = ['to do', 'open', 'reopen'];
                 const isPassive = passiveStatuses.includes(status.toLowerCase());
 
-                if (isPassive) {
+                if (isPassive && hasEstimate) {
+                    // Chỉ đếm passive nếu task đã có estimate → PM đã plan xong, dev cần bắt đầu
                     userActivityTracker[assigneeName].passiveCount++;
                     userActivityTracker[assigneeName].passiveKeys.push(key);
-                } else {
+                } else if (!isPassive) {
                     // Mọi trạng thái khác (In Progress, Done, Resolved, etc.) đều tính là Active
                     userActivityTracker[assigneeName].activeCount++;
                 }
