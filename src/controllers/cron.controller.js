@@ -219,8 +219,12 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                         userActivityTracker[assigneeName].passiveSubTaskKeys.push(key);
                     }
                 } else {
-                    // In Progress, Done, Review, etc. → member đang có việc chạy
-                    userActivityTracker[assigneeName].activeCount++;
+                    // Chỉ tính "đang làm thật" (In Progress, Doing, Review...) là active
+                    // Done/Resolved/Closed KHÔNG tính — dev cần bắt đầu task mới
+                    const doneStatuses = ['done', 'resolved', 'closed'];
+                    if (!doneStatuses.includes(status.toLowerCase())) {
+                        userActivityTracker[assigneeName].activeCount++;
+                    }
                 }
             }
         }
