@@ -99,8 +99,9 @@ class BottleneckService {
 
             results.push({
                 key: issue.key,
-                parentKey: issue.fields.parent?.key || '-',
-                parentSummary: issue.fields.parent?.fields?.summary || '-',
+                // Standalone ticket (không có parent) → tự trỏ về chính nó
+                parentKey: issue.fields.parent?.key || issue.key,
+                parentSummary: issue.fields.parent?.fields?.summary || issue.fields.summary,
                 summary: issue.fields.summary,
                 assignee: issue.fields.assignee?.displayName || 'Unassigned',
                 status,
