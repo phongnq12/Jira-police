@@ -172,6 +172,24 @@ Anh ${assigneeTag} ơi~ Em thấy anh đang có các ticket (${keysText}) vẫn 
 Anh nổ máy chọn 1 cái để chuyển sang <b>In Progress</b>, rồi tiện tay set <b>Due Date</b> và <b>Log Work</b> cho em vui nhé! 💋✨
     `.trim();
     }
+
+    /**
+     * [Kịch bản 10] Due date nằm ngoài thời gian của Sprint
+     */
+    outOfSprintBoundsAlert(issueKey, issueSummary, assigneeName, sprintName, dueDate, reason) {
+        const assigneeTag = getMentionTag(assigneeName, PLATFORM);
+        const issueLink = this.getIssueLink(issueKey);
+        
+        const reasonText = reason === 'after' ? 'TUỐT SAU KHI Sprint đã đóng băng' : 'TỪ THUỞ NÀO trước cả khi Sprint bắt đầu';
+
+        return `
+🚧 <b>LỆCH PHA DEADLINE & SPRINT</b> 🚧
+
+Anh ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> đang nằm trong <b>${sprintName}</b> mà deadline lại cắm ở ngày <b>${dueDate}</b> (${reasonText}) kìa 🫣
+
+Anh tính dùng cỗ máy thời gian của Doraemon để làm task à? Vui lòng update lại Due Date cho khớp với timeline của Sprint giúp em nhé! 💋✨
+    `.trim();
+    }
 }
 
 module.exports = new MessageService();

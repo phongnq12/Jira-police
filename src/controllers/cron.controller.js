@@ -90,6 +90,7 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
 
         let trackingWorklogCount = 0;
         let noActiveTaskCount = 0;
+        let outOfBoundsCount = 0;
 
         // KB9 Mode B: Bộ theo dõi sub-task activity per-member
         const userActivityTracker = {};
@@ -194,6 +195,43 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                 }
             }
 
+            // --- KIỂM TRA KB10: DUE DATE NẰM NGOÀI THỜI GIAN SPRINT --- //
+            if (fields.duedate && fields.sprint && !isIgnored && !isExemptParent) {
+                const dueDateObj = new Date(fields.duedate);
+                dueDateObj.setHours(0, 0, 0, 0);
+
+                if (fields.sprint.startDate && fields.sprint.endDate) {
+                    const sprintStart = new Date(fields.sprint.startDate);
+                    sprintStart.setHours(0, 0, 0, 0);
+
+                    const sprintEnd = new Date(fields.sprint.endDate);
+                    sprintEnd.setHours(0, 0, 0, 0);
+
+                    let reason = null;
+                    if (dueDateObj > sprintEnd) {
+                        reason = 'after';
+                    } else if (dueDateObj < sprintStart) {
+                        reason = 'before';
+                    }
+
+                    if (reason) {
+                        outOfBoundsCount++;
+                        
+                        const formatDDMMYYYY = (date) => {
+                            const d = date.getDate().toString().padStart(2, '0');
+                            const m = (date.getMonth() + 1).toString().padStart(2, '0');
+                            const y = date.getFullYear();
+                            return `${d}/${m}/${y}`;
+                        };
+                        const dueDateStr = formatDDMMYYYY(dueDateObj);
+                        
+                        const alertMsg = messageService.outOfSprintBoundsAlert(key, summary, assigneeName, fields.sprint.name || 'Active Sprint', dueDateStr, reason);
+                        await notificationService.dispatchAlert(`[Jira Master] 🚧 LỆCH PHA SPRINT`, alertMsg, 'warning', projectInfo.chatId);
+                        await sleep(1000);
+                    }
+                }
+            }
+
             // --- KIỂM TRA KB9: CHƯA BẮT ĐẦU CÔNG VIỆC (GOM THEO MEMBER) --- //
             // Gom TOÀN BỘ activity (sub-task + standalone) theo member.
             // Nếu member có BẤT KỲ task nào In Progress → skip KB9 hoàn toàn.
@@ -251,8 +289,9 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
         console.log(`  - 📝 Kịch bản Dư Thông Tin: ${missingInfoCount}`);
         console.log(`  - ⏳ Kịch bản Tàng Hình Log Work: ${trackingWorklogCount}`);
         console.log(`  - 🚀 Kịch bản Chưa Bắt Đầu: ${noActiveTaskCount}`);
+        console.log(`  - 🚧 Kịch bản Lệch Pha Sprint: ${outOfBoundsCount}`);
 
-        if ((overEstimateCount + deadlineTodayCount + overdueCount + missingInfoCount + trackingWorklogCount + noActiveTaskCount) === 0) {
+        if ((overEstimateCount + deadlineTodayCount + overdueCount + missingInfoCount + trackingWorklogCount + noActiveTaskCount + outOfBoundsCount) === 0) {
             console.log(`  => ✅ KHÔNG CÓ CẢNH BÁO NÀO TỪ MỤC CHÍNH. Gửi thông báo khích lệ (All Clear).\n`);
             
             const allClearMsg = messageService.allClearAlert();
