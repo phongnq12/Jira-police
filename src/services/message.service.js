@@ -26,9 +26,9 @@ class MessageService {
         const fieldsText = missingFields.join(', ');
 
         return `
-Anh ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> đang <b>trống trơn ${fieldsText}</b> kìa 🫣
+Anh/Chị Anh/Chị ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> đang <b>trống trơn ${fieldsText}</b> kìa 🫣
 
-Anh mà không điền thì em biết báo cáo cho ai bây giờ? Vào Jira cập nhật giúp em nhé~ 💋
+Anh/chị mà không điền thì em biết báo cáo cho ai bây giờ? Vào Jira cập nhật giúp em nhé~ 💋
     `.trim();
     }
 
@@ -42,9 +42,9 @@ Anh mà không điền thì em biết báo cáo cho ai bây giờ? Vào Jira c�
         return `
 🔔 <b>NHẮC NHẸ DEADLINE HÔM NAY</b> 🔔
 
-Anh ${assigneeTag} ơi, ticket ${issueLink} - <i>${issueSummary}</i> hôm nay đã đến hạn công việc rồi nhé! ✨
+Anh/Chị ${assigneeTag} ơi, ticket ${issueLink} - <i>${issueSummary}</i> hôm nay đã đến hạn công việc rồi nhé! ✨
 
-Cuối ngày anh nhớ dành chút thời gian cập nhật trạng thái và log work đầy đủ giúp em nha~ Cố lên anh! 💪💕
+Cuối ngày anh/chị nhớ dành chút thời gian cập nhật trạng thái và log work đầy đủ giúp em nha~ Cố lên anh/chị! 💪💕
     `.trim();
     }
 
@@ -58,11 +58,11 @@ Cuối ngày anh nhớ dành chút thời gian cập nhật trạng thái và lo
         return `
 ⚠️ <b>TRÀN ESTIMATION</b> ⚠️
 
-Ối~ ${assigneeTag} ơi, ticket ${issueLink} - <i>${issueSummary}</i> anh làm lố giờ rồi kìa 😏
+Ối~ ${assigneeTag} ơi, ticket ${issueLink} - <i>${issueSummary}</i> anh/chị làm lố giờ rồi kìa 😏
 • Dự kiến: <b>${originalEst}</b>
 • Thực tế: <b>${timeSpent}</b>
 
-Anh "cày" nhiều vậy ai mà chịu nổi~ Báo PM review lại scope nhé! 💅
+Anh/chị "cày" nhiều vậy ai mà chịu nổi~ Báo PM review lại scope nhé! 💅
     `.trim();
     }
 
@@ -92,9 +92,9 @@ Ai rảnh vào cứu giùm đi, em thấy tội mà không giúp được 🥺�
         return `
 👀 <b>DỜI DEADLINE BÍ MẬT</b> 👀
 
-Hmm~ ${assigneeTag} ơi~ em thấy anh lén dời deadline ticket ${issueLink} - <i>${issueSummary}</i> từ <b>${oldDate}</b> sang <b>${newDate}</b> mà không nói lý do nè...
+Hmm~ ${assigneeTag} ơi~ em thấy anh/chị lén dời deadline ticket ${issueLink} - <i>${issueSummary}</i> từ <b>${oldDate}</b> sang <b>${newDate}</b> mà không nói lý do nè...
 
-Giấu em chuyện gì vậy? Comment giải thích đi anh~ 😘
+Giấu em chuyện gì vậy? Comment giải thích đi anh/chị~ 😘
     `.trim();
     }
 
@@ -108,9 +108,9 @@ Giấu em chuyện gì vậy? Comment giải thích đi anh~ 😘
         return `
 🔥 <b>QUÁ HẠN (OVERDUE)</b> 🔥
 
-${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> quá hạn <b>${daysOverdue} ngày</b> rồi đó!
+Anh/Chị ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> quá hạn <b>${daysOverdue} ngày</b> rồi đó!
 
-Anh bỏ rơi nó lâu vậy em buồn lắm á~ Xử lý giùm em đi nha 🥹
+Anh/chị bỏ rơi nó lâu vậy em buồn lắm á~ Xử lý giùm em đi nha 🥹
     `.trim();
     }
 
@@ -124,9 +124,9 @@ Anh bỏ rơi nó lâu vậy em buồn lắm á~ Xử lý giùm em đi nha 🥹
         return `
 ⏳ <b>QUÊN LOG WORK</b> ⏳
 
-Anh ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> đang "<b>${status}</b>" mà log work vẫn <b>0 giờ</b> á 🤔
+Anh/Chị ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> đang "<b>${status}</b>" mà log work vẫn <b>0 giờ</b> á 🤔
 
-Anh làm nhiều vậy sao không ghi lại? Em muốn biết anh đã cống hiến bao nhiêu mà~ ⏰💕
+Anh/chị làm nhiều vậy sao không ghi lại? Em muốn biết anh/chị đã cống hiến bao nhiêu mà~ ⏰💕
     `.trim();
     }
 
@@ -167,9 +167,9 @@ Tiếp tục phát huy nhé cả nhà! Yêu thương~ 💖
         return `
 🚀 <b>BẮT ĐẦU CÔNG VIỆC THÔI ANH ƠI!</b> 🚀
 
-Anh ${assigneeTag} ơi~ Em thấy anh đang có các ticket (${keysText}) vẫn đang nằm im ở trạng thái chờ (To Do/Open) nè...
+Anh/Chị ${assigneeTag} ơi~ Em thấy anh/chị đang có các ticket (${keysText}) vẫn đang nằm im ở trạng thái chờ (To Do/Open) nè...
 
-Anh nổ máy chọn 1 cái để chuyển sang <b>In Progress</b>, rồi tiện tay set <b>Due Date</b> và <b>Log Work</b> cho em vui nhé! 💋✨
+Anh/chị nổ máy chọn 1 cái để chuyển sang <b>In Progress</b>, rồi tiện tay set <b>Due Date</b> và <b>Log Work</b> cho em vui nhé! 💋✨
     `.trim();
     }
 
@@ -185,9 +185,9 @@ Anh nổ máy chọn 1 cái để chuyển sang <b>In Progress</b>, rồi tiện
         return `
 🚧 <b>LỆCH PHA DEADLINE & SPRINT</b> 🚧
 
-Anh ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> đang nằm trong <b>${sprintName}</b> mà deadline lại cắm ở ngày <b>${dueDate}</b> (${reasonText}) kìa 🫣
+Anh/Chị ${assigneeTag} ơi~ ticket ${issueLink} - <i>${issueSummary}</i> đang nằm trong <b>${sprintName}</b> mà deadline lại cắm ở ngày <b>${dueDate}</b> (${reasonText}) kìa 🫣
 
-Anh tính dùng cỗ máy thời gian của Doraemon để làm task à? Vui lòng update lại Due Date cho khớp với timeline của Sprint giúp em nhé! 💋✨
+Anh/chị tính dùng cỗ máy thời gian của Doraemon để làm task à? Vui lòng update lại Due Date cho khớp với timeline của Sprint giúp em nhé! 💋✨
     `.trim();
     }
 }
