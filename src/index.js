@@ -31,15 +31,32 @@ if (config.ACTIVE_NOTIFICATION_PLATFORM === 'telegram' || config.ACTIVE_NOTIFICA
     if (config.TELEGRAM.BOT_TOKEN) {
         const bot = new TelegramBot(config.TELEGRAM.BOT_TOKEN, {
             polling: {
-                autoStart: true,
-                interval: 3000,  // 3 giây/lần thay vì mặc định (giảm tải mạng)
+                autoStart: false, // Quản lý thủ công để an toàn
+                interval: 3000,
                 params: { timeout: 10 }
             }
         });
 
+        // Xóa sạch webhook cũ (nếu lỡ cấu hình sai) để không bị lỗi 409 Conflict chặn Polling
+        bot.deleteWebHook().then(() => {
+            console.log('🤖 Đã xoá Webhook cũ khỏi Telegram, bảo vệ kênh Polling.');
+            bot.startPolling();
+            console.log('🤖 Đã khởi động bộ Lắng nghe lệnh Bot Telegram (Polling).');
+        }).catch(err => {
+            console.error('⚠️ [Telegram Bot] Không thể xóa webhook cũ:', err);
+            bot.startPolling();
+        });
+
         // Bắt lỗi polling để bot KHÔNG BAO GIỜ crash vì lỗi mạng
         bot.on('polling_error', (error) => {
-            console.error(`⚠️ [Telegram Polling] Lỗi mạng (em tự thử lại): ${error.code || error.message}`);
+            console.error(`⚠️ [Telegram Polling] Lỗi mạng: ${error.code || error.message}`);
+            // Restart polling nếu bị ngắt kết nối hoàn toàn
+            if (error.code === 'EFATAL') {
+                console.log('🔄 Đang thử khởi động lại Webhook/Polling...');
+                setTimeout(() => {
+                    bot.stopPolling().then(() => bot.startPolling());
+                }, 5000);
+            }
         });
 
         bot.on('error', (error) => {
@@ -47,7 +64,6 @@ if (config.ACTIVE_NOTIFICATION_PLATFORM === 'telegram' || config.ACTIVE_NOTIFICA
         });
 
         initCommands(bot);
-        console.log('🤖 Đã khởi động bộ Lắng nghe lệnh Bot Telegram (Polling - có bảo vệ lỗi mạng).');
     }
 }
 

@@ -2,7 +2,7 @@ require('dotenv').config();
 
 module.exports = {
   PORT: process.env.PORT || 3000,
-  ACTIVE_NOTIFICATION_PLATFORM: process.env.ACTIVE_NOTIFICATION_PLATFORM || 'teams',
+  ACTIVE_NOTIFICATION_PLATFORM: (process.env.ACTIVE_NOTIFICATION_PLATFORM || 'telegram').toLowerCase(),
   CRON_SCHEDULE: process.env.CRON_SCHEDULE || '* * * * *', // Mặc định mỗi phút (test mode)
   REPORT_CRON_SCHEDULE: process.env.REPORT_CRON_SCHEDULE || '59 23 * * *', // Mặc định 23:59 mỗi ngày
 
