@@ -38,6 +38,10 @@ const userDictionary = {
         telegram: "@phong123107",
         teams: "phongnq@aequitas.com"
     },
+    "trangntt1@aequitas.vn": {
+        telegram: "@thu_trang_277",
+        teams: "trangntt1@aequitas.vn"
+    },
 };
 
 /**
