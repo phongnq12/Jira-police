@@ -15,6 +15,42 @@ const projectConfig = require('../config/projects'); // Module quản lý nhóm 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
+ * Lấy thông tin Active Sprint từ custom field của Jira trả về
+ * Hỗ trợ giao tiếp đa nền tảng (Jira Server / Jira Cloud)
+ */
+function getActiveSprintInfo(fields) {
+    if (fields.sprint && fields.sprint.state === 'active') {
+        return {
+            id: String(fields.sprint.id),
+            name: fields.sprint.name,
+            startDate: fields.sprint.startDate,
+            endDate: fields.sprint.endDate
+        };
+    }
+    for (const key of Object.keys(fields)) {
+        if (key.startsWith('customfield_')) {
+            const val = fields[key];
+            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string' && val[0].includes('state=ACTIVE')) {
+                const activeString = val.find(s => typeof s === 'string' && s.includes('state=ACTIVE'));
+                if (activeString) {
+                    const idMatch = activeString.match(/id=([^,\]]+)/);
+                    const nameMatch = activeString.match(/name=([^,\]]+)/);
+                    const startMatch = activeString.match(/startDate=([^,\]]+)/);
+                    const endMatch = activeString.match(/endDate=([^,\]]+)/);
+                    return {
+                        id: idMatch ? idMatch[1] : null,
+                        name: nameMatch ? nameMatch[1] : 'Active Sprint',
+                        startDate: startMatch ? startMatch[1] : null,
+                        endDate: endMatch ? endMatch[1] : null
+                    };
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/**
  * Quét toàn bộ các task đang mở và kiểm tra các điều kiện cảnh báo.
  * @param {boolean} isScanAll 
  * @param {string} specificChatId 
@@ -48,7 +84,7 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
 
         // Yêu cầu Jira API trả về các trường cần thiết để phân tích (bao gồm sprint để kiểm tra mute)
         const data = await jiraService.searchIssues(jql, [
-            'summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent', 'issuetype', 'sprint', 'subtasks'
+            'summary', 'status', 'assignee', 'duedate', 'timeoriginalestimate', 'timespent', 'issuetype', 'sprint', 'subtasks', 'customfield_10020', 'customfield_10101'
         ]);
 
         if (!data.issues || data.issues.length === 0) {
@@ -59,8 +95,9 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
         // Kiểm tra Mute Sprint: Nếu toàn bộ issues thuộc 1 sprint bị mute → skip
         const sprintIds = new Set();
         for (const issue of data.issues) {
-            if (issue.fields.sprint && issue.fields.sprint.id) {
-                sprintIds.add(String(issue.fields.sprint.id));
+            const activeInfo = getActiveSprintInfo(issue.fields);
+            if (activeInfo && activeInfo.id) {
+                sprintIds.add(String(activeInfo.id));
             }
         }
         const mutedSprintIds = [...sprintIds].filter(id => storageService.isSprintMuted(id));
@@ -68,7 +105,8 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
             // Lọc bỏ các issues thuộc sprint đã bị mute
             const originalCount = data.issues.length;
             data.issues = data.issues.filter(issue => {
-                const sid = issue.fields.sprint && issue.fields.sprint.id ? String(issue.fields.sprint.id) : null;
+                const activeInfo = getActiveSprintInfo(issue.fields);
+                const sid = activeInfo && activeInfo.id ? String(activeInfo.id) : null;
                 return !sid || !storageService.isSprintMuted(sid);
             });
             console.log(`[Cronjob] 🔇 Đã lọc ${originalCount - data.issues.length} tasks thuộc Sprint bị Mute (IDs: ${mutedSprintIds.join(', ')})`);
@@ -196,15 +234,18 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
             }
 
             // --- KIỂM TRA KB10: DUE DATE NẰM NGOÀI THỜI GIAN SPRINT --- //
-            if (fields.duedate && fields.sprint && !isIgnored && !isExemptParent) {
+            const activeSprint = getActiveSprintInfo(fields);
+            
+            // KB10 áp dụng cho MỌI trạng thái của ticket (ngoại trừ Cancelled)
+            if (fields.duedate && activeSprint && status.toLowerCase() !== 'cancelled' && !isExemptParent) {
                 const dueDateObj = new Date(fields.duedate);
                 dueDateObj.setHours(0, 0, 0, 0);
 
-                if (fields.sprint.startDate && fields.sprint.endDate) {
-                    const sprintStart = new Date(fields.sprint.startDate);
+                if (activeSprint.startDate && activeSprint.endDate) {
+                    const sprintStart = new Date(activeSprint.startDate);
                     sprintStart.setHours(0, 0, 0, 0);
 
-                    const sprintEnd = new Date(fields.sprint.endDate);
+                    const sprintEnd = new Date(activeSprint.endDate);
                     sprintEnd.setHours(0, 0, 0, 0);
 
                     let reason = null;
@@ -225,7 +266,7 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
                         };
                         const dueDateStr = formatDDMMYYYY(dueDateObj);
                         
-                        const alertMsg = messageService.outOfSprintBoundsAlert(key, summary, assigneeName, fields.sprint.name || 'Active Sprint', dueDateStr, reason);
+                        const alertMsg = messageService.outOfSprintBoundsAlert(key, summary, assigneeName, activeSprint.name || 'Active Sprint', dueDateStr, reason);
                         await notificationService.dispatchAlert(`[Jira Master] 🚧 LỆCH PHA SPRINT`, alertMsg, 'warning', projectInfo.chatId);
                         await sleep(1000);
                     }
