@@ -21,7 +21,7 @@ const projectRoutingMap = {
         projectName: "Từ điển dữ liệu"
     },
     // Dự án Xếp hạng CSDL - Live
-    "-4991716861": {
+    "-1003711810972": {
         jiraProjectKey: "V.25.G.RD.C12.43.2.S",
         projectName: "Xếp hạng CSDL"
     },
