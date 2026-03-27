@@ -16,10 +16,15 @@ class ReportOrchestrator {
      * @param {string} projectKey Mã dự án Jira
      * @returns {object} Dữ liệu metrics tổng hợp + mảng issues
      */
-    async collectMetrics(projectKey) {
+    async collectMetrics(projectKey, sprintId) {
         // JQL: Lấy TẤT CẢ task trong Active Sprint (bao gồm Done) để tính đúng effort
         // Chỉ loại bỏ Epic. Story/Task sẽ được kiểm tra subtasks bằng JS phía dưới.
-        const jql = `project = "${projectKey}" AND issuetype != Epic AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
+        let jql = `project = "${projectKey}" AND issuetype != Epic`;
+        if (sprintId) {
+            jql += ` AND sprint = ${sprintId}`;
+        } else {
+            jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
+        }
 
         const data = await jiraService.searchIssues(jql, [
             'summary', 'status', 'assignee', 'duedate', 'resolutiondate',

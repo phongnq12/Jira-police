@@ -62,7 +62,7 @@ function initCommands(bot) {
 
         // Lệnh: /export_report — Xuất báo cáo Excel chi tiết
         if (text.startsWith('/export_report') || text.startsWith('@JiraMaster export_report')) {
-            await handleExportReport(bot, chatId, mappedProjectKey);
+            await handleExportReport(bot, chatId, text, mappedProjectKey);
         }
 
         // Lệnh: /report_now — ⏸ TẠM TẮT (biểu đồ đang tối ưu)
@@ -412,14 +412,21 @@ async function handleScanAll(bot, chatId) {
  * Logic xử lý lệnh Export Report (Xuất báo cáo Excel)
  * Thu thập metrics → chạy bottleneck analysis → tạo Excel → gửi file qua Telegram
  */
-async function handleExportReport(bot, chatId, projectKeyFallback) {
+async function handleExportReport(bot, chatId, text, projectKeyFallback) {
+    const parts = text.split(' ');
+    let sprintIdRaw = parts[1];
+    if (text.startsWith('@JiraMaster')) {
+        sprintIdRaw = parts[2];
+    }
+    const sprintId = sanitizeSprintId(sprintIdRaw);
+
     const loadingMsg = await bot.sendMessage(chatId, '📊 Em đang tổng hợp dữ liệu và xuất báo cáo Excel cho anh~ Đợi em xíu nha! ✨');
 
     try {
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // 1. Thu thập metrics
-        const metricsData = await reportOrchestrator.collectMetrics(projectKey);
+        const metricsData = await reportOrchestrator.collectMetrics(projectKey, sprintId);
         if (!metricsData) {
             return bot.editMessageText('😢 Em không tìm thấy task nào trong Active Sprint để làm báo cáo á anh ơi~', { chat_id: chatId, message_id: loadingMsg.message_id });
         }
