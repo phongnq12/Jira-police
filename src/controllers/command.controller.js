@@ -77,13 +77,14 @@ function initCommands(bot) {
  * Gom nhóm toàn bộ Task trong Sprint và cộng dồn Original Estimate theo từng Assignee
  */
 async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
+    console.log(`[CheckEffort] Bắt đầu xử lý lệnh. Tham số: ${text}, ChatID: ${chatId}`);
     // Bóc tách tham số (Ví dụ: /check_effort 142)
     const parts = text.split(' ');
     const sprintId = sanitizeSprintId(parts[1]);
 
-    const loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang trích xuất dữ liệu từ Jira cho anh. Đợi em xíu nha~ ✨');
-
+    let loadingMsg = null;
     try {
+        loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang trích xuất dữ liệu từ Jira cho anh. Đợi em xíu nha~ ✨');
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // JQL lấy TẤT CẢ task trong Sprint (bao gồm Done) để tính đúng tổng effort ban đầu
@@ -172,7 +173,11 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
 
     } catch (error) {
         console.error('Lỗi Check Effort:', error.message);
-        bot.editMessageText('❌ Ối! Có lỗi xảy ra khi gọi Jira rồi anh ơi~ Xem log giùm em nha 🥺', { chat_id: chatId, message_id: loadingMsg.message_id });
+        if (loadingMsg) {
+            bot.editMessageText('❌ Ối! Có lỗi xảy ra khi gọi Jira rồi anh ơi~ Xem log giùm em nha 🥺', { chat_id: chatId, message_id: loadingMsg.message_id }).catch(e => console.error(e));
+        } else {
+            bot.sendMessage(chatId, '❌ Ối! Có lỗi xảy ra rồi anh ơi~').catch(e => console.error(e));
+        }
     }
 }
 
@@ -182,13 +187,14 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
  * Hỗ trợ xem chi tiết theo tên assignee.
  */
 async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) {
+    console.log(`[CheckRemaining] Bắt đầu xử lý. Tham số: ${text}`);
     const parts = text.split(' ');
     const param1 = parts[1]; // Có thể là sprint_id hoặc tên assignee
     const param2 = parts.slice(2).join(' '); // Tên assignee (nếu có param1 là sprint_id)
 
-    const loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang kiểm tra danh sách công việc còn lại cho anh~ Đợi em xíu nha 💕');
-
+    let loadingMsg = null;
     try {
+        loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang kiểm tra danh sách công việc còn lại cho anh~ Đợi em xíu nha 💕');
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // Xây dựng JQL: Lấy task chưa hoàn thành (loại Done, Closed, Cancelled). Hạn chế quăng "User Story" vào JQL để tránh lỗi 400.
@@ -246,7 +252,9 @@ async function handleCheckRemainingTasks(bot, chatId, text, projectKeyFallback) 
 
     } catch (error) {
         console.error('Lỗi Check Remaining Tasks:', error.message);
-        bot.editMessageText('❌ Ối! Có lỗi xảy ra khi gọi Jira rồi anh ơi~ Xem log giùm em nha 🥺', { chat_id: chatId, message_id: loadingMsg.message_id });
+        if (loadingMsg) {
+            bot.editMessageText('❌ Ối! Có lỗi xảy ra khi gọi Jira rồi anh ơi~ Xem log giùm em nha 🥺', { chat_id: chatId, message_id: loadingMsg.message_id }).catch(e => console.error(e));
+        }
     }
 }
 
@@ -413,6 +421,7 @@ async function handleScanAll(bot, chatId) {
  * Thu thập metrics → chạy bottleneck analysis → tạo Excel → gửi file qua Telegram
  */
 async function handleExportReport(bot, chatId, text, projectKeyFallback) {
+    console.log(`[ExportReport] Bắt đầu tải báo cáo. Tham số: ${text}`);
     const parts = text.split(' ');
     let sprintIdRaw = parts[1];
     if (text.startsWith('@JiraMaster')) {
@@ -420,9 +429,9 @@ async function handleExportReport(bot, chatId, text, projectKeyFallback) {
     }
     const sprintId = sanitizeSprintId(sprintIdRaw);
 
-    const loadingMsg = await bot.sendMessage(chatId, '📊 Em đang tổng hợp dữ liệu và xuất báo cáo Excel cho anh~ Đợi em xíu nha! ✨');
-
+    let loadingMsg = null;
     try {
+        loadingMsg = await bot.sendMessage(chatId, '📊 Em đang tổng hợp dữ liệu và xuất báo cáo Excel cho anh~ Đợi em xíu nha! ✨');
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
 
         // 1. Thu thập metrics
@@ -484,7 +493,9 @@ async function handleExportReport(bot, chatId, text, projectKeyFallback) {
 
     } catch (error) {
         console.error('[ExportReport] Lỗi:', error.message);
-        bot.editMessageText('❌ Ối! Có lỗi xảy ra khi tạo báo cáo Excel rồi anh ơi~ Xem log giùm em nha 🥺', { chat_id: chatId, message_id: loadingMsg.message_id });
+        if (loadingMsg) {
+            bot.editMessageText('❌ Ối! Có lỗi xảy ra khi tạo báo cáo Excel rồi anh ơi~ Xem log giùm em nha 🥺', { chat_id: chatId, message_id: loadingMsg.message_id }).catch(e => console.error(e));
+        }
     }
 }
 
