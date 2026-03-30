@@ -96,8 +96,9 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
             jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
         }
 
-        // Yêu cầu Jira API trả về thông tin estimate + subtasks để xác định standalone
-        const data = await jiraService.searchIssues(jql, ['assignee', 'timeoriginalestimate', 'status', 'sprint', 'issuetype', 'subtasks']);
+        // Yêu cầu Jira API trả về thông tin estimate, changelog và thông tin sprint
+        const fieldsToFetch = ['assignee', 'timeoriginalestimate', 'status', 'sprint', 'customfield_10101', 'issuetype', 'subtasks', 'resolutiondate'];
+        const data = await jiraService.searchIssues(jql, fieldsToFetch, 'changelog');
 
         if (!data.issues || data.issues.length === 0) {
             return bot.editMessageText('😢 Em tìm hoài mà không thấy Task nào trong Sprint này hết á anh ơi~', { chat_id: chatId, message_id: loadingMsg.message_id });
@@ -124,6 +125,42 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
             const isExemptParent = issueTypeName === 'epic' || 
                 (['story', 'user story', 'task'].includes(issueTypeName) && hasSubtasks);
             if (isExemptParent) continue;
+
+            // --- Lọc loại bỏ Task Done từ trước khi Sprint bắt đầu ---
+            let sprintStartDate = null;
+            const sprintList = issue.fields.customfield_10101 || issue.fields.sprint; 
+            if (Array.isArray(sprintList) && sprintList.length > 0) {
+                const sprintString = String(sprintList[0]);
+                const match = sprintString.match(/startDate=([^,]+)/);
+                if (match && match[1] && match[1] !== '<null>') {
+                    sprintStartDate = new Date(match[1]);
+                }
+            } else if (sprintList && sprintList.startDate) {
+                sprintStartDate = new Date(sprintList.startDate);
+            }
+
+            let doneDate = null;
+            if (issue.changelog && issue.changelog.histories) {
+                const histories = issue.changelog.histories.sort((a,b) => new Date(b.created) - new Date(a.created));
+                for (const history of histories) {
+                    for (const item of history.items) {
+                        if (item.field === 'status' && item.toString && ['done', 'closed', 'resolved'].includes(item.toString.toLowerCase())) {
+                            doneDate = new Date(history.created);
+                            break;
+                        }
+                    }
+                    if (doneDate) break;
+                }
+            }
+            if (!doneDate && issue.fields.resolutiondate) {
+                doneDate = new Date(issue.fields.resolutiondate);
+            }
+
+            if (['done', 'closed', 'resolved'].includes(status) && sprintStartDate && doneDate && doneDate < sprintStartDate) {
+                console.log(`Bỏ qua task ${issue.key} vì đã Done (${doneDate}) trước khi Sprint bắt đầu (${sprintStartDate})`);
+                continue;
+            }
+            // ---------------------------------------------------------
 
             totalFilteredTaskCount++;
 
