@@ -57,10 +57,11 @@ class ReportOrchestrator {
         const assigneeMap = {};
 
         // Detect Sprint Info từ issue đầu tiên
-        let sprintId = null;
         let sprintName = null;
         if (issues[0]?.fields?.sprint) {
-            sprintId = String(issues[0].fields.sprint.id);
+            if (!sprintId) {
+                sprintId = String(issues[0].fields.sprint.id);
+            }
             sprintName = issues[0].fields.sprint.name;
         }
 
