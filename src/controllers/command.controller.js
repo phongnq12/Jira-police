@@ -117,14 +117,37 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
 
         // Tự động detect Tên/ID của Sprint từ Issue đầu tiên
         let detectedSprintName = sprintId ? `Sprint ID ${sprintId}` : 'Current Active Sprint';
-        if (data.issues[0].fields.sprint && data.issues[0].fields.sprint.name) {
-            detectedSprintName = data.issues[0].fields.sprint.name;
+        let globalSprintStartDate = null; // Cache lại sprint start date dùng chung
+
+        // Lấy sprint start date từ issue đầu tiên (robust hơn việc extract per-issue)
+        for (const firstIssue of data.issues) {
+            // Ưu tiên 1: Sprint object trực tiếp (Jira Cloud REST API v2)
+            if (firstIssue.fields.sprint && firstIssue.fields.sprint.startDate) {
+                globalSprintStartDate = new Date(firstIssue.fields.sprint.startDate);
+                detectedSprintName = firstIssue.fields.sprint.name || detectedSprintName;
+                break;
+            }
+            // Ưu tiên 2: customfield_10101 (Sprint custom field - array format)
+            const cf = firstIssue.fields.customfield_10101;
+            if (Array.isArray(cf) && cf.length > 0) {
+                const sprintStr = String(cf[0]);
+                const nameMatch = sprintStr.match(/name=([^,]+)/);
+                const startMatch = sprintStr.match(/startDate=([^,]+)/);
+                if (nameMatch && nameMatch[1]) detectedSprintName = nameMatch[1];
+                if (startMatch && startMatch[1] && startMatch[1] !== '<null>') {
+                    globalSprintStartDate = new Date(startMatch[1]);
+                    break;
+                }
+            }
         }
+        console.log(`[CheckEffort] 📅 Sprint Name: "${detectedSprintName}"`);
+        console.log(`[CheckEffort] 📅 Sprint Start Date: ${globalSprintStartDate ? globalSprintStartDate.toISOString() : '⚠️ KHÔNG XÁC ĐỊNH ĐƯỢC'}`);
 
         // === THUẬT TOÁN GOM NHÓM (GROUP BY) MẢNG THEO GIỜ LÀM ===
         const effortMap = {};
         let totalSprintSeconds = 0;
         let totalFilteredTaskCount = 0;
+        let skippedDoneBeforeSprintCount = 0;
 
         // Lọc ticket cha có sub-tasks (Story/Task có con thì bỏ qua, standalone thì tính)
         for (const issue of data.issues) {
@@ -138,38 +161,33 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
             if (isExemptParent) continue;
 
             // --- Lọc loại bỏ Task Done từ trước khi Sprint bắt đầu ---
-            let sprintStartDate = null;
-            const sprintList = issue.fields.customfield_10101 || issue.fields.sprint; 
-            if (Array.isArray(sprintList) && sprintList.length > 0) {
-                const sprintString = String(sprintList[0]);
-                const match = sprintString.match(/startDate=([^,]+)/);
-                if (match && match[1] && match[1] !== '<null>') {
-                    sprintStartDate = new Date(match[1]);
-                }
-            } else if (sprintList && sprintList.startDate) {
-                sprintStartDate = new Date(sprintList.startDate);
-            }
+            if (['done', 'closed', 'resolved'].includes(status) && globalSprintStartDate) {
+                let doneDate = null;
 
-            let doneDate = null;
-            if (issue.changelog && issue.changelog.histories) {
-                const histories = issue.changelog.histories.sort((a,b) => new Date(b.created) - new Date(a.created));
-                for (const history of histories) {
-                    for (const item of history.items) {
-                        if (item.field === 'status' && item.toString && ['done', 'closed', 'resolved'].includes(item.toString.toLowerCase())) {
-                            doneDate = new Date(history.created);
-                            break;
+                // Cách 1: Tìm lần chuyển sang Done GẦN NHẤT trong changelog
+                if (issue.changelog && issue.changelog.histories) {
+                    const histories = [...issue.changelog.histories].sort((a,b) => new Date(b.created) - new Date(a.created));
+                    for (const history of histories) {
+                        for (const item of history.items) {
+                            if (item.field === 'status' && item.toString && ['done', 'closed', 'resolved'].includes(item.toString.toLowerCase())) {
+                                doneDate = new Date(history.created);
+                                break;
+                            }
                         }
+                        if (doneDate) break;
                     }
-                    if (doneDate) break;
                 }
-            }
-            if (!doneDate && issue.fields.resolutiondate) {
-                doneDate = new Date(issue.fields.resolutiondate);
-            }
 
-            if (['done', 'closed', 'resolved'].includes(status) && sprintStartDate && doneDate && doneDate < sprintStartDate) {
-                console.log(`Bỏ qua task ${issue.key} vì đã Done (${doneDate}) trước khi Sprint bắt đầu (${sprintStartDate})`);
-                continue;
+                // Cách 2: Fallback dùng resolutiondate
+                if (!doneDate && issue.fields.resolutiondate) {
+                    doneDate = new Date(issue.fields.resolutiondate);
+                }
+
+                if (doneDate && doneDate < globalSprintStartDate) {
+                    console.log(`[CheckEffort] 🚫 Bỏ qua ${issue.key} — Done ${doneDate.toISOString()} < Sprint Start ${globalSprintStartDate.toISOString()}`);
+                    skippedDoneBeforeSprintCount++;
+                    continue;
+                }
             }
             // ---------------------------------------------------------
 
@@ -190,8 +208,14 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
         }
 
         // Format Báo cáo trả về Telegram
+        console.log(`[CheckEffort] 📊 Kết quả: ${totalFilteredTaskCount} task tính effort, ${skippedDoneBeforeSprintCount} task Done trước Sprint bị loại`);
+
         let reportText = `📊 <b>BÁO CÁO EFFORT: ${detectedSprintName}</b>\n\n`;
-        reportText += `Tổng Task: ${totalFilteredTaskCount} | Tổng Estimate: ${(totalSprintSeconds / 3600).toFixed(1)}h\n\n`;
+        reportText += `Tổng Task: ${totalFilteredTaskCount} | Tổng Estimate: ${(totalSprintSeconds / 3600).toFixed(1)}h`;
+        if (skippedDoneBeforeSprintCount > 0) {
+            reportText += ` | <i>(Đã loại ${skippedDoneBeforeSprintCount} task Done trước Sprint)</i>`;
+        }
+        reportText += `\n\n`;
         reportText += `<b>Phân bổ theo Nhân sự:</b>\n`;
 
         // Tính toán và định dạng giờ
