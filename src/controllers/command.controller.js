@@ -20,7 +20,8 @@ function initCommands(bot) {
 
     // Lắng nghe mọi text message để lọc lệnh
     bot.on('message', async (msg) => {
-        console.log(`[Telegram] Nhận được tin nhắn rác từ Chat ID: ${msg.chat.id}. Loại chat: ${msg.chat.type}`);
+        console.log(`[Telegram] 📩 Nhận tin nhắn từ Chat ID: ${msg.chat.id}. Loại chat: ${msg.chat.type}. Text: "${msg.text || '(empty)'}"`);
+        console.log(`[Telegram] Timestamp: ${new Date().toISOString()}`);
 
         // Chú ý: Không chặn chết theo 1 Test Group ID nữa, mà phải linh hoạt theo File Routing.
         const chatId = String(msg.chat.id);
@@ -77,15 +78,21 @@ function initCommands(bot) {
  * Gom nhóm toàn bộ Task trong Sprint và cộng dồn Original Estimate theo từng Assignee
  */
 async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
-    console.log(`[CheckEffort] Bắt đầu xử lý lệnh. Tham số: ${text}, ChatID: ${chatId}`);
+    console.log(`[CheckEffort] ========================================`);
+    console.log(`[CheckEffort] Bắt đầu xử lý lệnh.`);
+    console.log(`[CheckEffort] Tham số gốc: "${text}", ChatID: ${chatId}`);
+    console.log(`[CheckEffort] ProjectKey Fallback: ${projectKeyFallback}`);
     // Bóc tách tham số (Ví dụ: /check_effort 142)
     const parts = text.split(' ');
     const sprintId = sanitizeSprintId(parts[1]);
+    console.log(`[CheckEffort] Sprint ID sau sanitize: ${sprintId || '(null - dùng openSprints)'}`);
 
     let loadingMsg = null;
     try {
         loadingMsg = await bot.sendMessage(chatId, '🔄 Em đang trích xuất dữ liệu từ Jira cho anh. Đợi em xíu nha~ ✨');
+        console.log(`[CheckEffort] ✅ Đã gửi loading message. ID: ${loadingMsg.message_id}`);
         const projectKey = projectKeyFallback || config.JIRA.PROJECT_KEY || 'PROJ';
+        console.log(`[CheckEffort] Project Key sẽ dùng: "${projectKey}"`);
 
         // JQL lấy TẤT CẢ task trong Sprint (bao gồm Done) để tính đúng tổng effort ban đầu
         let jql = `project = "${projectKey}" AND issuetype != Epic`;
@@ -95,12 +102,16 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
             // Mặc định lấy Sprint đang mở tĩnh của dự án
             jql += ` AND sprint IN openSprints() AND sprint NOT IN futureSprints()`;
         }
+        console.log(`[CheckEffort] 🔍 JQL Query: ${jql}`);
 
         // Yêu cầu Jira API trả về thông tin estimate, changelog và thông tin sprint
         const fieldsToFetch = ['assignee', 'timeoriginalestimate', 'status', 'sprint', 'customfield_10101', 'issuetype', 'subtasks', 'resolutiondate'];
         const data = await jiraService.searchIssues(jql, fieldsToFetch, 'changelog');
 
+        console.log(`[CheckEffort] 📦 Jira trả về: ${data.issues ? data.issues.length : 0} issues (total: ${data.total})`);
+
         if (!data.issues || data.issues.length === 0) {
+            console.log(`[CheckEffort] ⚠️ Không có issue nào. Kết thúc.`);
             return bot.editMessageText('😢 Em tìm hoài mà không thấy Task nào trong Sprint này hết á anh ơi~', { chat_id: chatId, message_id: loadingMsg.message_id });
         }
 
@@ -209,7 +220,12 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
         });
 
     } catch (error) {
-        console.error('Lỗi Check Effort:', error.message);
+        console.error('[CheckEffort] ❌ LỖI NGHIÊM TRỌNG:', error.message);
+        console.error('[CheckEffort] Stack trace:', error.stack);
+        if (error.response) {
+            console.error('[CheckEffort] HTTP Status:', error.response.status);
+            console.error('[CheckEffort] Response data:', JSON.stringify(error.response.data));
+        }
         if (loadingMsg) {
             bot.editMessageText('❌ Ối! Có lỗi xảy ra khi gọi Jira rồi anh ơi~ Xem log giùm em nha 🥺', { chat_id: chatId, message_id: loadingMsg.message_id }).catch(e => console.error(e));
         } else {

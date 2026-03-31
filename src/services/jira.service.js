@@ -34,7 +34,7 @@ class JiraService {
         this._axiosInstance = axios.create({
             baseURL: `${this.baseUrl}/rest/api/2`,
             headers,
-            timeout: 15000 // 15s cho môi trường cloud (cold start)
+            timeout: 30000 // 30s cho môi trường cloud (expand=changelog cần nhiều thời gian)
         });
     }
 
@@ -81,7 +81,9 @@ class JiraService {
 
         console.error('❌ Đã thử hết số lần retry mà vẫn lỗi!');
         if (lastError.response) {
-            console.error('Chi tiết:', lastError.response.status, lastError.response.data);
+            console.error('Chi tiết:', lastError.response.status, JSON.stringify(lastError.response.data).substring(0, 500));
+        } else if (lastError.code) {
+            console.error('Error code:', lastError.code, '- Có thể là timeout hoặc network error');
         }
         throw lastError;
     }
