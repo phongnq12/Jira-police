@@ -24,47 +24,53 @@ app.post('/api/webhooks/jira', handleJiraWebhook);
 const { initCronJobs } = require('./controllers/cron.controller');
 initCronJobs();
 
-// Khởi tạo Telegram Bot Lắng Nghe Lệnh (Two-way)
-const TelegramBot = require('node-telegram-bot-api');
-const { initCommands } = require('./controllers/command.controller');
-if (config.ACTIVE_NOTIFICATION_PLATFORM === 'telegram' || config.ACTIVE_NOTIFICATION_PLATFORM === 'both') {
-    if (config.TELEGRAM.BOT_TOKEN) {
-        const bot = new TelegramBot(config.TELEGRAM.BOT_TOKEN, {
-            polling: {
-                autoStart: false, // Quản lý thủ công để an toàn
-                interval: 3000,
-                params: { timeout: 10 }
-            }
-        });
+// Hàm khởi tạo Telegram Bot (gọi SAU KHI server đã bind port thành công)
+function initTelegramBot() {
+    if (config.ACTIVE_NOTIFICATION_PLATFORM !== 'telegram' && config.ACTIVE_NOTIFICATION_PLATFORM !== 'both') return;
+    if (!config.TELEGRAM.BOT_TOKEN) return;
 
-        // Xóa sạch webhook cũ (nếu lỡ cấu hình sai) để không bị lỗi 409 Conflict chặn Polling
+    const TelegramBot = require('node-telegram-bot-api');
+    const { initCommands } = require('./controllers/command.controller');
+
+    const bot = new TelegramBot(config.TELEGRAM.BOT_TOKEN, {
+        polling: {
+            autoStart: false,
+            interval: 3000,
+            params: { timeout: 10 }
+        }
+    });
+
+    // Delay 5s để instance cũ trên Render kịp tắt polling, tránh 409 Conflict
+    console.log('🤖 Chờ 5 giây trước khi khởi động Telegram Polling (tránh 409 Conflict)...');
+    setTimeout(() => {
         bot.deleteWebHook().then(() => {
             console.log('🤖 Đã xoá Webhook cũ khỏi Telegram, bảo vệ kênh Polling.');
             bot.startPolling();
             console.log('🤖 Đã khởi động bộ Lắng nghe lệnh Bot Telegram (Polling).');
         }).catch(err => {
-            console.error('⚠️ [Telegram Bot] Không thể xóa webhook cũ:', err);
+            console.error('⚠️ [Telegram Bot] Không thể xóa webhook cũ:', err.message);
             bot.startPolling();
         });
+    }, 5000);
 
-        // Bắt lỗi polling để bot KHÔNG BAO GIỜ crash vì lỗi mạng
-        bot.on('polling_error', (error) => {
-            console.error(`⚠️ [Telegram Polling] Lỗi mạng: ${error.code || error.message}`);
-            // Restart polling nếu bị ngắt kết nối hoàn toàn
-            if (error.code === 'EFATAL') {
-                console.log('🔄 Đang thử khởi động lại Webhook/Polling...');
-                setTimeout(() => {
-                    bot.stopPolling().then(() => bot.startPolling());
-                }, 5000);
-            }
-        });
+    // Bắt lỗi polling - log CHI TIẾT để debug trên Render
+    bot.on('polling_error', (error) => {
+        const details = error.response ? `HTTP ${error.response.statusCode}: ${JSON.stringify(error.response.body || '').substring(0, 200)}` : error.message;
+        console.error(`⚠️ [Telegram Polling] ${error.code || 'ERROR'}: ${details}`);
 
-        bot.on('error', (error) => {
-            console.error(`⚠️ [Telegram Bot] Lỗi chung: ${error.message}`);
-        });
+        if (error.code === 'EFATAL') {
+            console.log('🔄 Đang thử khởi động lại Polling sau 10s...');
+            setTimeout(() => {
+                bot.stopPolling().then(() => bot.startPolling());
+            }, 10000);
+        }
+    });
 
-        initCommands(bot);
-    }
+    bot.on('error', (error) => {
+        console.error(`⚠️ [Telegram Bot] Lỗi chung: ${error.message}`);
+    });
+
+    initCommands(bot);
 }
 
 // Bảo vệ process-level: Không cho app crash vì lỗi không bắt được
@@ -76,8 +82,12 @@ process.on('uncaughtException', (error) => {
     console.error('⚠️ [Process] Uncaught Exception:', error.message);
 });
 
-// Start Server
-app.listen(config.PORT, () => {
-    console.log(`🚀 Jira Master Bot started on port ${config.PORT}`);
+// Start Server — PHẢI bind 0.0.0.0 explicitly cho Render port scanner
+const HOST = '0.0.0.0';
+app.listen(config.PORT, HOST, () => {
+    console.log(`🚀 Jira Master Bot started on ${HOST}:${config.PORT}`);
     console.log('Chờ đón Jira Webhook bắn tới...');
+
+    // Khởi tạo Telegram Bot SAU KHI server đã bind port thành công
+    initTelegramBot();
 });
