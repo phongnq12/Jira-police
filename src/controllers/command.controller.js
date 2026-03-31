@@ -115,28 +115,66 @@ async function handleCheckEffort(bot, chatId, text, projectKeyFallback) {
             return bot.editMessageText('😢 Em tìm hoài mà không thấy Task nào trong Sprint này hết á anh ơi~', { chat_id: chatId, message_id: loadingMsg.message_id });
         }
 
-        // Tự động detect Tên/ID của Sprint từ Issue đầu tiên
+        // Tự động detect Tên/ID của Sprint từ issue (ưu tiên Active Sprint)
         let detectedSprintName = sprintId ? `Sprint ID ${sprintId}` : 'Current Active Sprint';
-        let globalSprintStartDate = null; // Cache lại sprint start date dùng chung
+        let globalSprintStartDate = null;
 
-        // Lấy sprint start date từ issue đầu tiên (robust hơn việc extract per-issue)
-        for (const firstIssue of data.issues) {
-            // Ưu tiên 1: Sprint object trực tiếp (Jira Cloud REST API v2)
-            if (firstIssue.fields.sprint && firstIssue.fields.sprint.startDate) {
-                globalSprintStartDate = new Date(firstIssue.fields.sprint.startDate);
-                detectedSprintName = firstIssue.fields.sprint.name || detectedSprintName;
-                break;
+        /**
+         * Helper: Parse sprint string từ Jira Server customfield_10101
+         * Format: "com.atlassian.greenhopper.service.sprint.Sprint@...[id=X,state=ACTIVE,name=Y,startDate=Z,...]"
+         */
+        function parseSprintString(sprintStr) {
+            const str = String(sprintStr);
+            const get = (key) => {
+                const match = str.match(new RegExp(`${key}=([^,\\]]+)`));
+                return (match && match[1] && match[1] !== '<null>') ? match[1] : null;
+            };
+            return {
+                id: get('id'),
+                state: get('state'),
+                name: get('name'),
+                startDate: get('startDate'),
+            };
+        }
+
+        // Quét qua các issue để tìm Active Sprint info
+        for (const issue of data.issues) {
+            // Jira Cloud: sprint field trả object trực tiếp
+            if (issue.fields.sprint && issue.fields.sprint.startDate) {
+                if (issue.fields.sprint.state === 'active' || !globalSprintStartDate) {
+                    globalSprintStartDate = new Date(issue.fields.sprint.startDate);
+                    detectedSprintName = issue.fields.sprint.name || detectedSprintName;
+                    if (issue.fields.sprint.state === 'active') break; // Active sprint → dùng luôn
+                }
+                continue;
             }
-            // Ưu tiên 2: customfield_10101 (Sprint custom field - array format)
-            const cf = firstIssue.fields.customfield_10101;
+
+            // Jira Server: customfield_10101 trả mảng string (ticket có thể nằm trong NHIỀU sprint)
+            const cf = issue.fields.customfield_10101;
             if (Array.isArray(cf) && cf.length > 0) {
-                const sprintStr = String(cf[0]);
-                const nameMatch = sprintStr.match(/name=([^,]+)/);
-                const startMatch = sprintStr.match(/startDate=([^,]+)/);
-                if (nameMatch && nameMatch[1]) detectedSprintName = nameMatch[1];
-                if (startMatch && startMatch[1] && startMatch[1] !== '<null>') {
-                    globalSprintStartDate = new Date(startMatch[1]);
-                    break;
+                let activeSprint = null;
+                let lastSprint = null;
+
+                // Parse TẤT CẢ sprint trong mảng, ưu tiên tìm ACTIVE
+                for (const sprintStr of cf) {
+                    const parsed = parseSprintString(sprintStr);
+                    if (!parsed.startDate) continue;
+
+                    lastSprint = parsed; // Track sprint cuối cùng
+
+                    if (parsed.state && parsed.state.toUpperCase() === 'ACTIVE') {
+                        activeSprint = parsed;
+                        break; // Tìm thấy Active → dừng
+                    }
+                }
+
+                // Ưu tiên: Active Sprint → Sprint cuối cùng (mới nhất)
+                const bestSprint = activeSprint || lastSprint;
+                if (bestSprint && bestSprint.startDate) {
+                    globalSprintStartDate = new Date(bestSprint.startDate);
+                    detectedSprintName = bestSprint.name || detectedSprintName;
+                    console.log(`[CheckEffort] 🔎 Tìm thấy sprint: "${bestSprint.name}" (state=${bestSprint.state}, start=${bestSprint.startDate}) từ mảng ${cf.length} sprints`);
+                    if (activeSprint) break; // Active sprint → dùng luôn
                 }
             }
         }
