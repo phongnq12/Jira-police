@@ -26,8 +26,14 @@ initCronJobs();
 
 // Hàm khởi tạo Telegram Bot (gọi SAU KHI server đã bind port thành công)
 function initTelegramBot() {
-    if (config.ACTIVE_NOTIFICATION_PLATFORM !== 'telegram' && config.ACTIVE_NOTIFICATION_PLATFORM !== 'both') return;
-    if (!config.TELEGRAM.BOT_TOKEN) return;
+    if (config.ACTIVE_NOTIFICATION_PLATFORM !== 'telegram' && config.ACTIVE_NOTIFICATION_PLATFORM !== 'both') {
+        console.log('⏭ Bỏ qua Telegram Bot (Platform:', config.ACTIVE_NOTIFICATION_PLATFORM, ')');
+        return;
+    }
+    if (!config.TELEGRAM.BOT_TOKEN) {
+        console.log('⏭ Bỏ qua Telegram Bot (Chưa cấu hình BOT_TOKEN)');
+        return;
+    }
 
     const TelegramBot = require('node-telegram-bot-api');
     const { initCommands } = require('./controllers/command.controller');
@@ -40,29 +46,57 @@ function initTelegramBot() {
         }
     });
 
-    // Delay 5s để instance cũ trên Render kịp tắt polling, tránh 409 Conflict
-    console.log('🤖 Chờ 5 giây trước khi khởi động Telegram Polling (tránh 409 Conflict)...');
-    setTimeout(() => {
-        bot.deleteWebHook().then(() => {
-            console.log('🤖 Đã xoá Webhook cũ khỏi Telegram, bảo vệ kênh Polling.');
-            bot.startPolling();
-            console.log('🤖 Đã khởi động bộ Lắng nghe lệnh Bot Telegram (Polling).');
-        }).catch(err => {
-            console.error('⚠️ [Telegram Bot] Không thể xóa webhook cũ:', err.message);
-            bot.startPolling();
-        });
-    }, 5000);
+    let consecutiveErrors = 0;
+    let isRestarting = false;
+    let pollingStarted = false;
 
-    // Bắt lỗi polling - log CHI TIẾT để debug trên Render
+    /**
+     * Hàm khởi động polling an toàn (có retry)
+     */
+    async function safeStartPolling() {
+        if (isRestarting) return;
+        isRestarting = true;
+        try {
+            await bot.stopPolling();
+        } catch (e) { /* ignore */ }
+
+        try {
+            await bot.deleteWebHook();
+            console.log('🤖 Đã xoá Webhook cũ khỏi Telegram.');
+        } catch (e) {
+            console.error('⚠️ Không thể xóa Webhook:', e.message);
+        }
+
+        try {
+            await bot.startPolling();
+            pollingStarted = true;
+            consecutiveErrors = 0;
+            console.log('🤖 ✅ Telegram Polling đã khởi động thành công!');
+        } catch (e) {
+            console.error('❌ Không thể startPolling:', e.message);
+            pollingStarted = false;
+        }
+        isRestarting = false;
+    }
+
+    // Bắt lỗi polling - auto recovery
     bot.on('polling_error', (error) => {
-        const details = error.response ? `HTTP ${error.response.statusCode}: ${JSON.stringify(error.response.body || '').substring(0, 200)}` : error.message;
-        console.error(`⚠️ [Telegram Polling] ${error.code || 'ERROR'}: ${details}`);
+        consecutiveErrors++;
+        const details = error.response
+            ? `HTTP ${error.response.statusCode}: ${JSON.stringify(error.response.body || '').substring(0, 200)}`
+            : error.message;
+        console.error(`⚠️ [Telegram Polling] Error #${consecutiveErrors}: ${error.code || 'ERROR'} — ${details}`);
 
-        if (error.code === 'EFATAL') {
-            console.log('🔄 Đang thử khởi động lại Polling sau 10s...');
-            setTimeout(() => {
-                bot.stopPolling().then(() => bot.startPolling());
-            }, 10000);
+        // Auto-restart sau 5 lỗi liên tiếp
+        if (consecutiveErrors >= 5 && !isRestarting) {
+            console.log('🔄 Quá nhiều lỗi polling liên tiếp. Tự động restart sau 15s...');
+            setTimeout(() => safeStartPolling(), 15000);
+        }
+
+        // EFATAL = mất kết nối hoàn toàn
+        if (error.code === 'EFATAL' && !isRestarting) {
+            console.log('🔄 EFATAL detected. Restart polling sau 10s...');
+            setTimeout(() => safeStartPolling(), 10000);
         }
     });
 
@@ -70,7 +104,30 @@ function initTelegramBot() {
         console.error(`⚠️ [Telegram Bot] Lỗi chung: ${error.message}`);
     });
 
+    // Reset error counter khi nhận được message thành công
+    bot.on('message', () => {
+        if (consecutiveErrors > 0) {
+            console.log(`[Telegram] ✅ Polling hoạt động bình thường. Reset error counter (was ${consecutiveErrors}).`);
+            consecutiveErrors = 0;
+        }
+    });
+
     initCommands(bot);
+
+    // KHỞI ĐỘNG: Delay 5s để instance cũ trên Render kịp tắt
+    console.log('🤖 Chờ 5 giây trước khi khởi động Telegram Polling...');
+    setTimeout(() => safeStartPolling(), 5000);
+
+    // HEALTH CHECK: Kiểm tra polling mỗi 60 giây
+    setInterval(() => {
+        if (!pollingStarted && !isRestarting) {
+            console.log('🔄 [HealthCheck] Polling chưa khởi động. Thử lại...');
+            safeStartPolling();
+        } else if (consecutiveErrors >= 3 && !isRestarting) {
+            console.log(`🔄 [HealthCheck] Detected ${consecutiveErrors} consecutive errors. Restarting...`);
+            safeStartPolling();
+        }
+    }, 60000);
 }
 
 // Bảo vệ process-level: Không cho app crash vì lỗi không bắt được
