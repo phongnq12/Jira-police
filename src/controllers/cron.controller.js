@@ -72,8 +72,9 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
 
         console.log(`[Cronjob] Tìm thấy ${activeProjects.length} dự án cần quét:`, activeProjects.map(p => p.jiraProjectKey));
 
-        // CHẠY VÒNG LẶP CHO TỪNG DỰ ÁN
+        // CHẠY VÒNG LẶP CHO TỪNG DỰ ÁN — mỗi project có try-catch riêng để lỗi 1 nhóm không ảnh hưởng nhóm khác
         for (const projectInfo of activeProjects) {
+          try {
             console.log(`\n======================================================`);
             console.log(`[Cronjob] Đang quét dự án: [${projectInfo.jiraProjectKey}] đẩy về Group: [${projectInfo.chatId}]`);
             console.log(`======================================================\n`);
@@ -340,11 +341,16 @@ async function runDailyReport(isScanAll = false, specificChatId = null) {
         } else {
             console.log(`  => 📡 Đã phát lệnh nã Notification.\n`);
         }
-        
+
+          } catch (projectError) {
+              console.error(`[Cronjob] ❌ Lỗi khi quét dự án [${projectInfo.jiraProjectKey}] cho Group [${projectInfo.chatId}]:`, projectError.message);
+              console.error('[Cronjob] Stack:', projectError.stack);
+              // TIẾP TỤC xử lý các nhóm còn lại, KHÔNG DỪNG
+          }
         } // ĐÓNG VÒNG LẶP FOR (projects)
 
     } catch (error) {
-        console.error('[Cronjob] Lỗi khi chạy job:', error.message);
+        console.error('[Cronjob] Lỗi nghiêm trọng (ngoài vòng lặp):', error.message);
     }
 }
 
