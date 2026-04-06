@@ -6,29 +6,32 @@
 const env = require('./env');
 
 const projectRoutingMap = {
-    // Để giữ nguyên tính chất đang chạy ổn định: 
-    // Chúng ta lấy ID Group hiện tại (-5185115610) trỏ vào Project Key Cũ (X25RDDIGILEND)
+    // ===== NHÓM TEST (cronEnabled: false → Cronjob KHÔNG gửi cảnh báo, chỉ dùng lệnh thủ công) =====
     // Dự án Từ điển dữ liệu - Test
     "-5185115610": {
         jiraProjectKey: "V.25.G.RD.C12.43.S",
-        projectName: "Từ điển dữ liệu"
-    },
-
-    // Khi anh có dự án 2, anh chỉ cần lấy ID Group 2 dán vào đây, rồi điền Jira Key D.A 2
-    // Dự án Từ điển dữ liệu - Live
-    "-5055590570": {
-        jiraProjectKey: "V.25.G.RD.C12.43.S",
-        projectName: "Từ điển dữ liệu"
-    },
-    // Dự án Xếp hạng CSDL - Live
-    "-1003711810972": {
-        jiraProjectKey: "V.25.G.RD.C12.43.2.S",
-        projectName: "Xếp hạng CSDL"
+        projectName: "Từ điển dữ liệu (Test)",
+        cronEnabled: false
     },
     // Dự án Xếp hạng CSDL - Test
     "-5039880714": {
         jiraProjectKey: "V.25.G.RD.C12.43.2.S",
-        projectName: "Xếp hạng CSDL"
+        projectName: "Xếp hạng CSDL (Test)",
+        cronEnabled: false
+    },
+
+    // ===== NHÓM LIVE (cronEnabled: true → Cronjob gửi cảnh báo tự động) =====
+    // Dự án Từ điển dữ liệu - Live
+    "-5055590570": {
+        jiraProjectKey: "V.25.G.RD.C12.43.S",
+        projectName: "Từ điển dữ liệu",
+        cronEnabled: true
+    },
+    // Dự án Xếp hạng CSDL - Live
+    "-1003711810972": {
+        jiraProjectKey: "V.25.G.RD.C12.43.2.S",
+        projectName: "Xếp hạng CSDL",
+        cronEnabled: true
     }
 };
 
@@ -68,9 +71,14 @@ function getProjectKeyByChatId(chatId, defaultProjectKey = null) {
  * Dành cho Cronjob: Trả về danh sách tất cả các Config đang có để Cron chạy vòng lặp
  * @returns {Array} Mảng các object chứa chatId và jiraProjectKey
  */
-function getAllActiveProjects() {
+/**
+ * Trả về danh sách các project đang hoạt động
+ * @param {boolean} cronOnly Nếu true, chỉ trả về nhóm có cronEnabled=true (dùng cho Cronjob)
+ */
+function getAllActiveProjects(cronOnly = false) {
     const projects = [];
     for (const [chatId, config] of Object.entries(projectRoutingMap)) {
+        if (cronOnly && config.cronEnabled === false) continue;
         projects.push({
             chatId: chatId,
             jiraProjectKey: config.jiraProjectKey,

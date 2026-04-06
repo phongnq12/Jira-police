@@ -58,8 +58,11 @@ function getActiveSprintInfo(fields) {
 async function runDailyReport(isScanAll = false, specificChatId = null) {
     console.log(`[Cronjob] Bắt đầu chạy luồng quét Scheduled Report... (Scan All: ${isScanAll}, Target Chat: ${specificChatId || 'All'})`);
     try {
-        // Thay vì chỉ chạy cho 1 dự án lấy từ ENV, ta lấy toàn bộ các dự án đã khai báo trong projects.js
-        let activeProjects = projectConfig.getAllActiveProjects();
+        // Nếu chạy tự động từ Cron → chỉ lấy nhóm Live (cronEnabled=true)
+        // Nếu chạy thủ công /scan_all → lấy tất cả (bao gồm nhóm Test)
+        let activeProjects = specificChatId
+            ? projectConfig.getAllActiveProjects(false) // Thủ công: lấy tất cả
+            : projectConfig.getAllActiveProjects(true);  // Tự động: chỉ nhóm Live
         
         if (specificChatId) {
             activeProjects = activeProjects.filter(p => p.chatId.toString() === specificChatId.toString());
