@@ -42,6 +42,10 @@ const userDictionary = {
         telegram: "@thu_trang_277",
         teams: "trangntt1@aequitas.vn"
     },
+    "ninhnh@synodus.com": {
+        telegram: "@H2n1827",
+        teams: "ninhnh@synodus.com"
+    },
 };
 
 /**
