@@ -22,7 +22,7 @@ const projectRoutingMap = {
 
     // ===== NHÓM LIVE (cronEnabled: true → Cronjob gửi cảnh báo tự động) =====
     // Dự án Từ điển dữ liệu - Live
-    "-5055590570": {
+    "-1003852624760": {
         jiraProjectKey: "V.25.G.RD.C12.43.S",
         projectName: "Từ điển dữ liệu",
         cronEnabled: true
