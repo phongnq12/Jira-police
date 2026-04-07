@@ -8,10 +8,15 @@ app.use(express.json());
 
 // Health check endpoint (chi tiết)
 app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'OK', message: 'Jira Master Bot is running' });
+    const uptimeMin = Math.floor(process.uptime() / 60);
+    res.status(200).json({ 
+        status: 'OK', 
+        message: 'Jira Master Bot is running',
+        uptime: `${uptimeMin} minutes`
+    });
 });
 
-// Ping endpoint (siêu nhẹ - dùng cho cron-job.org giữ ấm Render)
+// Ping endpoint (siêu nhẹ - dùng cho cron-job.org + self-keep-alive giữ ấm Render)
 app.get('/ping', (req, res) => {
     res.status(200).send('OK');
 });
@@ -196,4 +201,30 @@ app.listen(config.PORT, HOST, () => {
 
     // Khởi tạo Telegram Bot SAU KHI server đã bind port thành công
     initTelegramBot();
+
+    // SELF-KEEP-ALIVE: Tự ping chính mình mỗi 13 phút
+    // Render Free Tier spin down sau 15 phút không có traffic
+    // Giải pháp này đáng tin hơn cron-job.org vì chạy trong cùng process
+    const KEEP_ALIVE_INTERVAL = 13 * 60 * 1000; // 13 phút
+    const serviceUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${config.PORT}`;
+    
+    setInterval(() => {
+        const http = serviceUrl.startsWith('https') ? require('https') : require('http');
+        const req = http.get(`${serviceUrl}/ping`, (res) => {
+            // Chỉ log khi có vấn đề, tránh spam log
+            if (res.statusCode !== 200) {
+                console.warn(`⚠️ [KeepAlive] Self-ping returned ${res.statusCode}`);
+            }
+            res.resume(); // drain response
+        });
+        req.on('error', (err) => {
+            console.warn(`⚠️ [KeepAlive] Self-ping failed: ${err.message}`);
+        });
+        req.setTimeout(10000, () => {
+            req.destroy();
+            console.warn('⚠️ [KeepAlive] Self-ping timeout');
+        });
+    }, KEEP_ALIVE_INTERVAL);
+    
+    console.log(`🏓 [KeepAlive] Tự ping mỗi 13 phút tới ${serviceUrl}/ping`);
 });
