@@ -493,6 +493,8 @@ function initCronJobs() {
             async () => {
                 console.log(`[Cronjob] Đang thực thi task theo lịch: ${schedule}`);
                 await runDailyReport();
+                // Đánh dấu đã gửi alert hôm nay (dùng cho catch-up)
+                await markAlertSent();
             },
             null, // onComplete
             true, // start
@@ -532,6 +534,120 @@ function initCronJobs() {
     }
     */
     console.log('⏸ CRONJOB 2 (Reporting) đã tạm tắt. Dùng /report_now để chạy thủ công.');
+
+    // === CATCH-UP ALERT: Chạy bổ sung nếu miss alert do cold start ===
+    // Delay 30s để DB kịp migrate + bot kịp khởi tạo
+    setTimeout(() => checkCatchUpAlert(), 30000);
+}
+
+/**
+ * Lấy ngày hôm nay theo timezone Việt Nam (YYYY-MM-DD)
+ */
+function getTodayVN() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+}
+
+/**
+ * Lấy giờ hiện tại theo timezone Việt Nam (0-23)
+ */
+function getCurrentHourVN() {
+    return parseInt(new Date().toLocaleString('en-US', { 
+        timeZone: 'Asia/Ho_Chi_Minh', 
+        hour: 'numeric', 
+        hour12: false 
+    }), 10);
+}
+
+/**
+ * Lấy phút hiện tại theo timezone Việt Nam (0-59)
+ */
+function getCurrentMinuteVN() {
+    return parseInt(new Date().toLocaleString('en-US', { 
+        timeZone: 'Asia/Ho_Chi_Minh', 
+        minute: 'numeric' 
+    }), 10);
+}
+
+/**
+ * Lấy ngày trong tuần theo timezone Việt Nam (0=CN, 1=T2, ..., 6=T7)
+ */
+function getDayOfWeekVN() {
+    return new Date().toLocaleDateString('en-US', { 
+        timeZone: 'Asia/Ho_Chi_Minh', 
+        weekday: 'short' 
+    });
+}
+
+/**
+ * Đánh dấu đã gửi alert hôm nay vào PostgreSQL
+ */
+async function markAlertSent() {
+    try {
+        const today = getTodayVN();
+        await snapshotRepo.setState('last_daily_alert_date', today);
+        console.log(`[CatchUp] ✅ Đã đánh dấu alert ngày ${today} vào DB.`);
+    } catch (e) {
+        console.error('[CatchUp] ⚠️ Không thể đánh dấu alert:', e.message);
+    }
+}
+
+/**
+ * CATCH-UP ALERT: Kiểm tra xem có cần gửi bổ sung alert không.
+ * 
+ * Logic:
+ * 1. Hôm nay có phải ngày làm việc (T2-T6)?
+ * 2. Giờ hiện tại có nằm trong khung catch-up (8:30 - 11:00 VN)?
+ * 3. Alert hôm nay đã được gửi chưa (check PostgreSQL)?
+ * 4. Nếu chưa → gửi bổ sung ngay!
+ */
+async function checkCatchUpAlert() {
+    try {
+        const today = getTodayVN();
+        const hour = getCurrentHourVN();
+        const minute = getCurrentMinuteVN();
+        const dayName = getDayOfWeekVN();
+
+        console.log(`[CatchUp] 🔍 Kiểm tra catch-up: ${dayName} ${today} ${hour}:${String(minute).padStart(2, '0')} (VN)`);
+
+        // Chỉ chạy ngày làm việc (Mon-Fri)
+        const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+        if (!weekdays.includes(dayName)) {
+            console.log('[CatchUp] ⏭ Hôm nay là cuối tuần. Bỏ qua.');
+            return;
+        }
+
+        // Chỉ catch-up trong khung 8:30 - 11:00 (giờ VN)
+        const currentMinutes = hour * 60 + minute;
+        const startMinutes = 8 * 60 + 30;  // 8:30
+        const endMinutes = 11 * 60;         // 11:00
+
+        if (currentMinutes < startMinutes) {
+            console.log('[CatchUp] ⏭ Chưa tới giờ alert (trước 8:30). Bỏ qua.');
+            return;
+        }
+        if (currentMinutes > endMinutes) {
+            console.log('[CatchUp] ⏭ Đã quá khung catch-up (sau 11:00). Bỏ qua.');
+            return;
+        }
+
+        // Kiểm tra DB xem hôm nay đã gửi chưa
+        const lastAlertDate = await snapshotRepo.getState('last_daily_alert_date');
+        
+        if (lastAlertDate === today) {
+            console.log(`[CatchUp] ✅ Alert hôm nay (${today}) đã được gửi. Không cần catch-up.`);
+            return;
+        }
+
+        // CATCH-UP: Chưa gửi alert hôm nay → gửi bổ sung!
+        console.log(`[CatchUp] 🚨 Phát hiện MISS alert! Lần cuối: ${lastAlertDate || 'chưa bao giờ'}. Đang gửi catch-up...`);
+        
+        await runDailyReport();
+        await markAlertSent();
+        
+        console.log(`[CatchUp] ✅ Đã gửi catch-up alert thành công cho ngày ${today}!`);
+    } catch (error) {
+        console.error('[CatchUp] ❌ Lỗi khi kiểm tra catch-up:', error.message);
+    }
 }
 
 module.exports = {

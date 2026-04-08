@@ -65,11 +65,17 @@ class SnapshotRepository {
 
             CREATE INDEX IF NOT EXISTS idx_snapshot_date ON project_health_snapshots (snapshot_date);
             CREATE INDEX IF NOT EXISTS idx_snapshot_project ON project_health_snapshots (project_key, snapshot_date);
+
+            CREATE TABLE IF NOT EXISTS bot_state (
+                key     VARCHAR(100) PRIMARY KEY,
+                value   TEXT NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
         `;
 
         try {
             await this.pool.query(createTableSQL);
-            console.log('[SnapshotRepo] ✅ Auto-migrate thành công: bảng project_health_snapshots đã sẵn sàng.');
+            console.log('[SnapshotRepo] ✅ Auto-migrate thành công: bảng project_health_snapshots + bot_state đã sẵn sàng.');
         } catch (error) {
             console.error('[SnapshotRepo] ❌ Lỗi auto-migrate:', error.message);
         }
@@ -175,6 +181,42 @@ class SnapshotRepository {
         } catch (error) {
             console.error('[SnapshotRepo] ❌ Lỗi query latest snapshot:', error.message);
             return null;
+        }
+    }
+
+    /**
+     * Lấy giá trị state từ bảng bot_state
+     * @param {string} key Tên key cần lấy
+     * @returns {string|null} Giá trị hoặc null nếu không tồn tại
+     */
+    async getState(key) {
+        if (!this.isReady()) return null;
+        try {
+            const result = await this.pool.query(
+                'SELECT value FROM bot_state WHERE key = $1', [key]
+            );
+            return result.rows.length > 0 ? result.rows[0].value : null;
+        } catch (error) {
+            console.error(`[SnapshotRepo] ❌ Lỗi getState(${key}):`, error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Lưu giá trị state vào bảng bot_state (upsert)
+     * @param {string} key Tên key
+     * @param {string} value Giá trị cần lưu
+     */
+    async setState(key, value) {
+        if (!this.isReady()) return;
+        try {
+            await this.pool.query(
+                `INSERT INTO bot_state (key, value, updated_at) VALUES ($1, $2, NOW())
+                 ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+                [key, value]
+            );
+        } catch (error) {
+            console.error(`[SnapshotRepo] ❌ Lỗi setState(${key}):`, error.message);
         }
     }
 }
