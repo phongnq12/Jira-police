@@ -46,6 +46,18 @@ const userDictionary = {
         telegram: "@H2n1827",
         teams: "ninhnh@synodus.com"
     },
+    "thuongtt2@synodus.com": {
+        telegram: "@nuht30",
+        teams: "thuongtt2@synodus.com"
+    },
+    "tamtc@synodus.com": {
+        telegram: "@tamtc246",
+        teams: "tamtc@synodus.com"
+    },
+    "hungtq@synodus.com": {
+        telegram: "@VedicTamKhai",
+        teams: "hungtq@synodus.com"
+    },
 };
 
 /**

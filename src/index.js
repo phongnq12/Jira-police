@@ -9,8 +9,8 @@ app.use(express.json());
 // Health check endpoint (chi tiết)
 app.get('/health', (req, res) => {
     const uptimeMin = Math.floor(process.uptime() / 60);
-    res.status(200).json({ 
-        status: 'OK', 
+    res.status(200).json({
+        status: 'OK',
         message: 'Jira Master Bot is running',
         uptime: `${uptimeMin} minutes`
     });
@@ -207,7 +207,7 @@ app.listen(config.PORT, HOST, () => {
     // Giải pháp này đáng tin hơn cron-job.org vì chạy trong cùng process
     const KEEP_ALIVE_INTERVAL = 13 * 60 * 1000; // 13 phút
     const serviceUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${config.PORT}`;
-    
+
     setInterval(() => {
         const http = serviceUrl.startsWith('https') ? require('https') : require('http');
         const req = http.get(`${serviceUrl}/ping`, (res) => {
@@ -225,6 +225,6 @@ app.listen(config.PORT, HOST, () => {
             console.warn('⚠️ [KeepAlive] Self-ping timeout');
         });
     }, KEEP_ALIVE_INTERVAL);
-    
+
     console.log(`🏓 [KeepAlive] Tự ping mỗi 13 phút tới ${serviceUrl}/ping`);
 });
