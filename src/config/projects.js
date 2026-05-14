@@ -19,6 +19,12 @@ const projectRoutingMap = {
         projectName: "Xếp hạng CSDL (Test)",
         cronEnabled: false
     },
+    // Dự án Cơ sở cai nghiện - Test
+    "-5124706179": {
+        jiraProjectKey: "V.26.G.FX.103.66.S",
+        projectName: "Cơ sở cai nghiện",
+        cronEnabled: false
+    },
 
     // ===== NHÓM LIVE (cronEnabled: true → Cronjob gửi cảnh báo tự động) =====
     // Dự án Từ điển dữ liệu - Live
