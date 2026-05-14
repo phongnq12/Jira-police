@@ -99,6 +99,7 @@ class BottleneckService {
 
             results.push({
                 key: issue.key,
+                issueType: issue.fields.issuetype?.name || 'Unknown',
                 // Standalone ticket (không có parent) → tự trỏ về chính nó
                 parentKey: issue.fields.parent?.key || issue.key,
                 parentSummary: issue.fields.parent?.fields?.summary || issue.fields.summary,

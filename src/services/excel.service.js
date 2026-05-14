@@ -25,7 +25,9 @@ class ExcelService {
 
         taskSheet.columns = [
             { header: 'Issue Key', key: 'key', width: 20 },
+            { header: 'Type', key: 'issueType', width: 15 },
             { header: 'Parent Key', key: 'parentKey', width: 20 },
+            { header: 'Parent Name', key: 'parentSummary', width: 40 },
             { header: 'Summary', key: 'summary', width: 40 },
             { header: 'Status', key: 'status', width: 18 },
             { header: 'Assignee', key: 'assignee', width: 22 },
@@ -59,7 +61,9 @@ class ExcelService {
 
                 const row = taskSheet.addRow({
                     key: item.key,
+                    issueType: item.issueType || 'Unknown',
                     parentKey: item.parentKey || '-',
+                    parentSummary: item.parentSummary || '-',
                     summary: item.summary,
                     status: item.status,
                     assignee: item.assignee,
@@ -91,7 +95,7 @@ class ExcelService {
             }
         }
 
-        taskSheet.autoFilter = 'A1:K1';
+        taskSheet.autoFilter = 'A1:M1';
         this._addBorders(taskSheet);
 
         // ====================================
