@@ -292,11 +292,9 @@ class ReportOrchestrator {
     async runBottleneckAnalysis(issues) {
         if (!issues || issues.length === 0) return null;
 
-        // Giới hạn 30 issues để tránh quá tải Jira API
-        const limitedIssues = issues.slice(0, 30);
-        console.log(`[Orchestrator] 🔍 Phân tích bottleneck cho ${limitedIssues.length}/${issues.length} issues...`);
+        console.log(`[Orchestrator] 🔍 Phân tích bottleneck cho ${issues.length} issues...`);
 
-        return bottleneckService.analyzeIssues(limitedIssues);
+        return bottleneckService.analyzeIssues(issues);
     }
 }
 
