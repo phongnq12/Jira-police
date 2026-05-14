@@ -536,8 +536,8 @@ function initCronJobs() {
     console.log('⏸ CRONJOB 2 (Reporting) đã tạm tắt. Dùng /report_now để chạy thủ công.');
 
     // === CATCH-UP ALERT: Chạy bổ sung nếu miss alert do cold start ===
-    // Delay 30s để DB kịp migrate + bot kịp khởi tạo
-    setTimeout(() => checkCatchUpAlert(), 30000);
+    // Đã tắt theo yêu cầu: Bot chỉ chạy theo lịch cron cấu hình, không tự động chạy khi deploy/restart.
+    // setTimeout(() => checkCatchUpAlert(), 30000);
 }
 
 /**
